@@ -63,6 +63,16 @@ They are generally ambiguous, I have color coded the various instances of the sa
  - The wheels are $${\color{magenta}79 \space millimeters}$$ wide [^12]
  - Sojourner (Figures 1 & 2) is a six-wheeled vehicle $${\color{red}68 \space cm}$$ long, $${\color{green}48 \space cm}$$ wide, and $${\color{yellow}28 \space cm}$$ high (with 17 cm ground clearance)[^13]
  - one dimension was found in a photogrammetry paper: "Taking the distances between point 1 and 4 or 2 and 3, the rover was measured to have a length of 41.6 and 42.8 cm, respectively, in excellent agreement with the nominal size of 41.6 cm."[^14]
+
+## Direct measurements
+GearSkeptic on Youtube has access to a rover wheel, here are the measurements he took:
+
+Ok, here are some measurements with a digital caliper:
+ - Rim diameter $${\color{cyan}120mm}$$
+ - Rim width $${\color{magenta}80.17mm}$$
+ - Tire width 70.76mm
+ - Cleat prominence 6.27mm
+ - (...the cleats...) are 11mm wide.
  
 
 
