@@ -37,7 +37,8 @@ Commercial parts can help make sense of scale on the pictures.
  - Most screws are assumed to be metric[^1].
  - The motors are [Maxon RE16](https://www.maxongroup.fr/maxon/view/product/motor/dcmotor/re/re16/118690)[^2] (sometimes "RE016") with a single output shaft[^3], whose documentation is still available online. 
  - The potentiometers are [BI precision 6173](https://www.ttelectronics.com/products/passive-components/potentiometers/6173)[^4] (identified by the part number on pictures), whose documentation is also available online. 
- - The gearboxes are described as "Globe Motors" 5 stages planetary gearboxes, but sadly this company has disappeared and I couldn't identify the gearbox
+ - The gearboxes are described as "Globe Motors" 5 stages planetary gearboxes, but sadly this company has disappeared and I couldn't identify the gearbox.
+ - The contact switches are [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM) whose price are very NASA-compliant.
  
 ## Documented dimensions
 They are generally ambiguous, I have color coded the various instances of the same dimension.
