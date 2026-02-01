@@ -74,7 +74,8 @@ Ok, here are some measurements with a digital caliper:
  - Cleat prominence 6.27mm
  - (...the cleats...) are 11mm wide.
  
-
+## Current state of the 3D model
+It's accesible here: https://a360.co/49T97gi , for now, just some drive and steering stuff has been remodeled.
 
 [^1]: "With few exceptions, all Pathfinder’s parts are metric sized, from its nuts and bolts to its 10-kilogram (22-pound) robotic rover" https://www.latimes.com/archives/la-xpm-1995-02-21-mn-34480-story.html
 [^2]: "the Maxon  RE016  motor which had been used successfully on the Mars  Sojourner  Rover" Braun, David & Noon, Don. (1998). "Long life" DC brush motor for use on the Mars surveyor program. https://www.researchgate.net/publication/23604427_Long_life_DC_brush_motor_for_use_on_the_Mars_surveyor_program
