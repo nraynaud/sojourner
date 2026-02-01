@@ -10,7 +10,7 @@ The Marie Curie rover is a double for Sojourner, two rovers were built at the sa
 Today the Marie Curie rover is exposed at the National Air and Space Museum in DC. Most high resolution photos available are from this rover 
 since the other one left earth in 1996, fong before we had hight resolution digital cameras in our pockets. 
 
-Marie Curie was poised to receive some modifications and be sent to Mars at a later date, it look like some modifications have already been made, so it is not strickly identical to Sojourner.
+Marie Curie was poised to receive some modifications and be sent to Mars at a later date, it look like some modifications have already been made, so it is not strictly identical to Sojourner.
 
 ### Differences with Sojourner
  - the antenna hook has been removed
