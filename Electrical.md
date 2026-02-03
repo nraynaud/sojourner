@@ -23,6 +23,8 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 and sensors and actuators external to the WEB via a set of three Flex cables. Although the boards are generally referred to as the "CPU" Board and the "Power" Board, 
 they each contain components which are responsible for power generation, power conditioning, power distribution and control, 
 analog and digital I/O control and processing, computing (i.e., the CPU), and data storage (i.e., memory)." -wikimedia description of the following photo:
+
+
 <img width="943" height="750" alt="image" src="https://github.com/user-attachments/assets/1fd5512a-f4e7-4874-b908-c42b796ea836" />
 
 The CPU is a flight-qualified Intel 8085 running at 100 KIPS. [Here is a JPL summary](https://www-robotics.jpl.nasa.gov/what-we-do/flight-projects/pathfinder/software-electronics/)
@@ -64,11 +66,11 @@ Instead the Sojourner rover 8085 code had a simple control loop that executed co
 
 The MAE is installed in the front left corner cutout of Sojourner's solar panel. Marie Curie lacks this experiment.
 
-"The purpose of this instrument was to make ameasurement by which degradation of the array output dueto dust coverage could be reliably separated fromdegradation due to other causes or changes in output dueto variations in the solar intensity at the surface.
+"The purpose of this instrument was to make a measurement by which degradation of the array output due to dust coverage could be reliably separated from degradation due to other causes or changes in output due to variations in the solar intensity at the surface.
 The MAE has two instruments: a quartz crystal microbalance, and a shorted GaAs solar cell fitted with a removable cover glass. (It also includes a temperature sensor and an open-circuit solar cell used to monitor the solar-array maximum-power point.)
 The MAE solar cell experiment uses the GaAs solar cell with a removable cover glass to measure optical obscuration caused by settling dust. 
-During the course ofthe mission, the cover glass on the shorted cell is occasionally rotated away from its normal position in frontof the solar cell, and the short circuit current (Isc) ismeasured. 
-Comparing Isc with and without the cover glassin place measures the optical obscuration of the glasssurface by dust on the cover, plus the reflectance of thecover glass itself. 
+During the course of the mission, the cover glass on the shorted cell is occasionally rotated away from its normal position in front of the solar cell, and the short circuit current (Isc) is measured. 
+Comparing Isc with and without the cover glass in place measures the optical obscuration of the glass surface by dust on the cover, plus the reflectance of thecover glass itself. 
 The known reflectance of the coverglass is then subtracted out, to give the amount of obscuration due to dust." [Dust on Mars](https://github.com/user-attachments/files/25053947/dustonmars.pdf)
 
 
@@ -93,4 +95,5 @@ The RCW is the computer system used on earth to assess the rover's position and 
 
 
 This file is a work in progress. To be discussed is the radio hardware, power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
+
 
