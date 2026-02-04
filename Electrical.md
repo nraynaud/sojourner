@@ -2,9 +2,10 @@
 Christopher Bovee, January 2026
 
 
-As a spaceflight nerd and robiticist I am fascinated with the control systems of the Sojourner Rover.
-The pathfinder mission was designed under heavy budget constraints which pushed engineers to develop new methods.
-A large amount of hardware is repurposed from what was available "off the shelf".
+As a spaceflight nerd and robiticist I am fascinated with the electronics and control systems of the Sojourner Rover.
+The pathfinder mission was designed under heavy budget constraints which pushed engineers to develop new ways of doing things.
+Moreso than previous missions, a large amount of the hardware is made from what was available commercially "off the shelf".
+This document is meant to outline the electrical components & software, and how they functioned together to operate the rover. 
 
 
 
@@ -27,24 +28,22 @@ The 8085 CPU is from March 1976. It is an improvement on the 8080 CPU which was 
 [Intel 8085 @ Wikipedia](https://en.wikipedia.org/wiki/Intel_8085)
 
  Though Pentium processors were available, the 8085 was chosen for reliability in the harsh environment and for it's relatively low power consumption (~3 watts typically).
- All software was written in C, except for a few time-critical or hardware-specific functions which were wrtiten in 8085 Assembly. 
+ All software was written in C, except for a few time-critical or hardware-specific functions which were wrtiten in 8085 Assembly. "Sojourner's sophisticated software was written in C and assembly using a Unix development environment 
+ (note: Sojourner has no on-board operating system); it runs on an Intel 80C85 processor operating at 2MHz, a choice dictated by power and radiation-hardness constraints.  Sojourner's top speed is roughly 1 cm/sec"
  It was a single-threaded control loop using interrupts for exception conditions, since power was considered inadequate for a multitasking executive.
 
  The 8080/8085 processors had:
  
+    100 Kips - 2 MHz clock
+    64 Kbyte memory address range split into 4 16 Kbyte banks
+    11 banks of ROM
+    36 banks of RAM
+    I/O to about 70 sensor channels and services
     8 bit word size
     2's complement arithmetic
     single level interrupt system
     registers separate from memory addresses
     no floating point processor instructions
-
-Further the Sojourner rover Control and Navigation Subsystem had:
-
-    100 Kips
-    64 Kbyte memory address range split into 4 16 Kbyte banks
-    11 banks of ROM
-    36 banks of RAM
-    I/O to about 70 sensor channels and services
 
 "Unlike the executives for the Apollo AGC and the Viking GCSC or VxWorks (RTOS) used in later PowerPC based spacecraft control systems, the core software in the Sojourner rover 8085 code did not use a 'time sharing' or multi-tasking executive. 
 This was possible because the Sojourner rover Control and Navigation Subsystem didn't control time sensitive space navigation or landing which those other systems did. 
@@ -55,6 +54,7 @@ Instead the Sojourner rover 8085 code had a simple control loop that executed co
 ## Radio systems
 
 [Microrover telecom overview](http://www.iki.rssi.ru/mpfmirror/rovercom/radio.html) 
+[Microrover telecom subsystem 'lessons learned'](https://www.academia.edu/122637267/Mars_Microrover_Telecom_Subsystem)
 
 The components of the telecommunications system are:
 
@@ -65,6 +65,12 @@ The lander's own - X‑band transmitter and receiver for direct‑to‑Earth com
 "The Microrover radio is located inside the Rover WEB (Warm Electronics Box) where it is protected from the extreme cold. The radio is connected to the Microrover antenna using a short piece of coaxial cable that passes through the wall of the WEB. 
 The radios that are used in the Microrover telecommunications system were purchased from Motorola's Paging Products Division. Several components that were designed and used in these radios were made by a company named DataRadio. 
 These are off-the-shelf commercial radio modem's (modulator+demodulator) that were modified to meet the communication needs of the Microrover mission. The antennas were designed and built by our Telecom team here at JPL."
+
+"The repackaging philosophy we selected to follow was, to keep the radios as C1OSC to their original forms as possible, replacing and adding only the necessary items. 
+To be specific, we wanted to make sure that the electrical performance of the radios is not altered. But we did want to make certain that these radios will withstand thermal cycles, shock & vibration conditions. 
+After much discussion, we came up with the following plan: replace all plastic connectors and switch with soldered-in wire jumpers; replace fuse with a jumper wire; pot or stake down all variable components; 
+mount the radio boards on JPL built stainless steel frames; add heaters and temperature sensors; replace commercial grade RF connector with more reliable SMA connectors; 
+wrap the assembly with fiber glass - Aluminum tape - fiber glass sandwich cover, replacing the heavier commercial metal casing, for weight reduction."
 
 
 Flight Rover Radio Modem:
@@ -110,13 +116,19 @@ The height of the rover antenna when it is deployed is about 83 cm.
 
 
 
-## Light-stripe triangulation system
+## Light-stripe system for autonomous navigation
 
-In order to detect obstacles without physically bumping into them, the rover was equipped with 5 laser diodes which project light on the ground in front of the rover. 
-The weak light of the lasers was detected by using the cameras to take two pictures rapidly: one with lasers on and one without. The diodes-off image was subtracted from the diodes-on image to detect the faint laser light. 
+
+"The Sojourner rover features limited autonomous navigation ability, encapsulated primarily in the 'Go To Waypoint' command: ground operators specify a goal location, and the rover moves toward the goal without
+further instruction, avoiding obstacles and other hazards on its own. The rover captures stereo image data with its front-mounted stereo camera pair, which it also uses to perceive its environment via a laser-striping system. 
+This system senses obstacles ahead of the rover as follows: the five on-board lasers project stripes onto the ground, and selected lines in each camera are scanned to build up a 20-point range 'image' of the terrain immediately in front of the rover. 
+This terrain model is then used on-board, during execution of the 'Go To Waypoint' command, to perform hazard detection and avoidance on the way to the goal. 
+
+The weak light of the lasers was detected using the cameras to take two pictures rapidly: one with lasers turned on and one without. 
+The lights-off image was subtracted from the lights-on image to detect the faint laser light. 
 The vertical displacement of the light indicates the relative height of the surface or object in front of the rover. 
 
-The semi-autonomous driving mode makes use of this sensor to avoid hazards while driving. The onboard 8085 computer is able to do very basic computer vision tasks. it only has to evaluate one line of pixels at a time to determine the laser position.
+
 
 
 
@@ -126,12 +138,19 @@ There is also a wide physical bumper on each side of the rover, connected by fla
 
 
 
+
 ## Rover Control Workstation (RCW)
 
-The RCW is the computer system used on earth to assess the rover's position and to generate and send commands the operate the rover.
+The RCW is the computer system used on earth to assess the rover's status, position, and to generate and send commands the operate the rover. It was based on an SGI Onyx 2 computer.
+
+one document mentions "The ground operators' interface software is Silicon Graphics Inventor®-based" [Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
+Inventor is a 3D graphics library for writing 3D applications like this. [read more about SGI inventor here](https://web.cs.wpi.edu/~matt/courses/cs563/talks/inventor.html)
 
 ![rcw](https://github.com/user-attachments/assets/bcf0c033-b9b9-425b-aec4-973588ef344b)
 
+"The uplink engineers spent several hours laboriously building and documenting the command sequences, using the Rover Control Workstation (an SGI Onyx 2). 
+A typical sequence contained 200-300 commands, detailing everything from thermal control parameters, to health status check rates, to actual instrument operation and traverse instructions. 
+The traverse commands, in particular, necessitated an intensive building process: the designated ``rover driver'' donned LCD shuttered goggles in order to scrutinise a 3D display of actual Martian terrain derived from stereo data from theIMP cameras.
 
 
 
@@ -150,7 +169,7 @@ The known reflectance of the coverglass is then subtracted out, to give the amou
 
 ![MAE_Integration_Model](https://github.com/user-attachments/assets/299c6a7d-684c-4d94-a917-36554367f42e) 
 
-This blurb about the function of the MAE comes from an EEr who designed a board which evaluates the MAE:
+This blurb about the function of the MAE quartz microbalance comes from an EE who designed the board which evaluates the MAE:
 
 "The sensor outputted a sine wave (-ish), the frequency of which was the difference frequency between two crystals in an oscillator/mixer circuit. 
 One crystal was shielded from the dusty atmosphere, the other, coated with vacuum grease (as glue) was exposed. Dust falling onto the exposed crystal became fixed and effectively changed its mass. 
@@ -177,7 +196,8 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 
 
 
-## This file is a work in progress. To be discussed is the radio hardware, power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
+## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
 
