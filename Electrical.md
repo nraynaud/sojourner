@@ -62,9 +62,9 @@ The Sojourner Rover UHF radio modem and antenna,
 The lander LMRE (Lander Mounted Rover Equipment) UHF Radio Modem and antenna,
 The lander's own - X‑band transmitter and receiver for direct‑to‑Earth communication.
 
-COTS modems and antennas were selected from Motorola's DATARADIO catalog, and modified for robustness.
-
-
+"The Microrover radio is located inside the Rover WEB (Warm Electronics Box) where it is protected from the extreme cold. The radio is connected to the Microrover antenna using a short piece of coaxial cable that passes through the wall of the WEB. 
+The radios that are used in the Microrover telecommunications system were purchased from Motorola's Paging Products Division. Several components that were designed and used in these radios were made by a company named DataRadio. 
+These are off-the-shelf commercial radio modem's (modulator+demodulator) that were modified to meet the communication needs of the Microrover mission. The antennas were designed and built by our Telecom team here at JPL."
 
 
 Flight Rover Radio Modem:
@@ -106,10 +106,23 @@ RF Gain: 1.4 dBiv
 Free Space Match: 1.09:1 VSWR at center frequency 
 The height of the rover antenna when it is deployed is about 83 cm.
 
-
 -these specs according to this site [How the MARS microrover radios and antennas work](http://www.iki.rssi.ru/mpfmirror/rovercom/itworks.html)
 
 
+
+## Light-stripe triangulation system
+
+In order to detect obstacles without physically bumping into them, the rover was equipped with 5 laser diodes which project light on the ground in front of the rover. 
+The weak light of the lasers was detected by using the cameras to take two pictures rapidly: one with lasers on and one without. The diodes-off image was subtracted from the diodes-on image to detect the faint laser light. 
+The vertical displacement of the light indicates the relative height of the surface or object in front of the rover. 
+
+The semi-autonomous driving mode makes use of this sensor to avoid hazards while driving. The onboard 8085 computer is able to do very basic computer vision tasks. it only has to evaluate one line of pixels at a time to determine the laser position.
+
+
+
+## Bumper strips:
+
+There is also a wide physical bumper on each side of the rover, connected by flat springs and off-the-shelf contact switches [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
 
 
 
@@ -151,16 +164,20 @@ The sensor output was squared up by a comparator whose output went to the counte
 
 
 
+
+
+
 ### Commercial Off The Shelf parts:
 
 Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
 
 Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element material](https://www.ttelectronics.com/products/passive-components/potentiometers/6173) 4 of these are used for steering position feedback.
 
-'Bumper' contact switches are [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
+'Bumper' contact switches are 
 
 
 
 ## This file is a work in progress. To be discussed is the radio hardware, power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
