@@ -90,7 +90,7 @@ GearSkeptic on Youtube has access to a rover wheel, and he patiently fielded all
 - Cleat thickness: 0.17 mm
 - Cleat manufacturing hole diameter: 1.7 mm
 - Clamp prominence: 4.5 mm
-- Clamp screw size: uses a 1.5 metric or 1/16 imperial allen wrench. Socket head of screw is 2.9 mm diameter
+- Clamp screw size: uses a 1.5 metric or 1/16 imperial allen wrench. Socket head of screw is 2.9 mm diameter (nraynaud: going for M1.6 according to the "Fasterner Black Book")
 - Clamp shelf-hat: 8 mm wide, 10 mm long
 - Clamp thickness on crenellation: 5.2 mm
 - Between crenellations: 2.8 mm
