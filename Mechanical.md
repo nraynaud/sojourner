@@ -66,14 +66,38 @@ They are generally ambiguous, I have color coded the various instances of the sa
 - one dimension was found in a photogrammetry paper: "Taking the distances between point 1 and 4 or 2 and 3, the rover was measured to have a length of 41.6 and 42.8 cm, respectively, in excellent agreement with the nominal size of 41.6 cm."[^14]
 
 ## Direct measurements
-GearSkeptic on Youtube has access to a rover wheel, here are the measurements he took:
+GearSkeptic on Youtube has access to a rover wheel, and he patiently fielded all my requests for measurements:
 
-Ok, here are some measurements with a digital caliper:
 - Rim diameter $${\color{cyan}120mm}$$
-- Rim width $${\color{magenta}80.17mm}$$
 - Tire width 70.76mm
 - Cleat prominence 6.27mm
 - (...the cleats...) are 11mm wide.
+- The wheel width total (outside rim to outside rim) is $${\color{magenta}80mm}$$
+- Outside rim to outer face of hub hole is 19.5 mm, and outer face of hub hole to far-side outer rim is 60.5 mm.
+- ID of central hole: 62 mm
+- Diameter of bolt circle (the imaginary ring passing through the bolt hole centers): 66 mm
+- Diameter of bolt holes: 2.12 mm (measured from a #2-56 machine screw that fits perfectly)
+- Diameter of edge starting the cone: 76 mm (there is a radius there, I measured to the edge of the flat spot or the beginning of that radius)
+- The vent hole is 180 degrees opposite from the clamp
+- Vent hole diameter: 1.6 mm
+- ID rim lip: 110 mm
+- Thickness rim lip: 1mm
+- Distance between rim lip and rim face: interpretive, as there are multiple radii under the lip, and the lip ends up overhanging the cone.
+- Here is what I did get: under the lip itself, the radius is 8 mm.
+- It then flattens just wide enough to accommodate the back side of the rivets, which are 2.33 mm diameter.
+- It then has another radius like a fillet leading into the cone.  That radius was 6 mm
+- Cleat thickness: 0.17 mm
+- Cleat manufacturing hole diameter: 1.7 mm
+- Clamp prominence: 4.5 mm
+- Clamp screw size: uses a 1.5 metric or 1/16 imperial allen wrench. Socket head of screw is 2.9 mm diameter
+- Clamp shelf-hat: 8 mm wide, 10 mm long
+- Clamp thickness on crenellation: 5.2 mm
+- Between crenellations: 2.8 mm
+- Thickness of central rib in clamp sandwich: 2 mm
+- Crenellation length: 5 mm each
+- Length of gap between crenellations: 7 mm
+- The angled ramps at either end of the clamp are 4.5 mm long at 45deg angle
+- The notch is 5 mm long
 
 ## Current state of the 3D model
 It's accesible here: https://a360.co/49T97gi , for now, just some drive and steering stuff has been remodeled.
