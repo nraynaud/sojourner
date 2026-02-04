@@ -1,18 +1,11 @@
 # Notes on the electrical design of the Sojourner rover
 Christopher Bovee, January 2026
 
+
 As a spaceflight nerd and robiticist I am fascinated with the control systems of the Sojourner Rover.
 The pathfinder mission was designed under heavy budget constraints which pushed engineers to develop new methods.
+A large amount of hardware is repurposed from what was available "off the shelf".
 
-
-
-### Commercial Off The Shelf parts:
-
-Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
-
-Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element material](https://www.ttelectronics.com/products/passive-components/potentiometers/6173) 4 of these are used for steering position feedback.
-
-'Bumper' contact switches are [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
 
 
 
@@ -53,11 +46,78 @@ Further the Sojourner rover Control and Navigation Subsystem had:
     36 banks of RAM
     I/O to about 70 sensor channels and services
 
-"Unlike the executives for the Apollo AGC and the Viking GCSC or VxWorks used in later Power based spacecraft control systems, the core software in the Sojourner rover 8085 code did not use a 'time sharing' or multi-tasking executive. 
+"Unlike the executives for the Apollo AGC and the Viking GCSC or VxWorks (RTOS) used in later PowerPC based spacecraft control systems, the core software in the Sojourner rover 8085 code did not use a 'time sharing' or multi-tasking executive. 
 This was possible because the Sojourner rover Control and Navigation Subsystem didn't control time sensitive space navigation or landing which those other systems did. 
 Instead the Sojourner rover 8085 code had a simple control loop that executed commands sequentially. ["Software Development and Processors for Hobbyists and Students of Robotics"](https://terakuhn.weebly.com/software.html)
 
 
+
+## Radio systems
+
+[Microrover telecom overview](http://www.iki.rssi.ru/mpfmirror/rovercom/radio.html) 
+
+The components of the telecommunications system are:
+
+The Sojourner Rover UHF radio modem and antenna,
+The lander LMRE (Lander Mounted Rover Equipment) UHF Radio Modem and antenna,
+The lander's own - X‑band transmitter and receiver for direct‑to‑Earth communication.
+
+COTS modems and antennas were selected from Motorola's DATARADIO catalog, and modified for robustness.
+
+
+
+
+Flight Rover Radio Modem:
+<img width="616" height="417" alt="image" src="https://github.com/user-attachments/assets/5208aa1c-15fb-430b-9ba6-3bcb16889f64" />
+
+<img width="620" height="359" alt="image" src="https://github.com/user-attachments/assets/0a35d961-41b0-4aa3-aa09-b21d74524222" />
+
+
+### UHF radio modem Specifications:
+
+Type: Modified Motorola RNET 9600 Radio Modem [still available as surplus](https://bmisurplus.com/products/motorola-rnet-450s-data-transceiver/)
+Mass: 105.9 grams
+Dimensions: 8.13 cm (3.2") length by 6.35 cm (2.5") width by 2.3 cm (0.9") height
+RF Connector Type: Coaxial SMA
+DC Connector Type: 9 pin Micro-D (signal and power)
+DC Bus Voltage: +9 Volts, Regulated
+DC Bus Current: 28 mA Standby; 35 mA Receive; 170 mA Transmit
+Operating Voltage: +7.5 Volts
+DC Power: 1.7 W (includes +9V regulator efficiency)
+RF Center Frequency: 459.7 MHz
+RF Channel Bandwidth: 25 KHz
+RF Signal Modulation: DGMSK (Differential Gaussian Minimum Shift Keying), basically FM modulation
+RF Transmit Power: 100 mW
+Computer Interface: RS232 converted to TTL levels
+Maximum Data Rate: 9600 BPS (Bits Per Second) Asynchronous; Effective :2400 BPS
+Temperature Range: -30C to +40C (operational), -55C to +60C (storage)
+Handshaking: Half Duplex (Simplex)
+
+
+
+### Rover Antenna Specifications
+
+Overall Length: 45.0 cm (includes support tube)
+Materials: Fiberglass tube, Aluminum Tube, Teflon supports, coaxial cable
+RF Connector Type: Coaxial SMA
+RF Center Frequency: 459.7 MHz
+RF Bandwidth: 700 KHz for < 2:1 VSWR
+RF Gain: 1.4 dBiv
+Free Space Match: 1.09:1 VSWR at center frequency 
+The height of the rover antenna when it is deployed is about 83 cm.
+
+
+-these specs according to this site [How the MARS microrover radios and antennas work](http://www.iki.rssi.ru/mpfmirror/rovercom/itworks.html)
+
+
+
+
+
+## Rover Control Workstation (RCW)
+
+The RCW is the computer system used on earth to assess the rover's position and to generate and send commands the operate the rover.
+
+![rcw](https://github.com/user-attachments/assets/bcf0c033-b9b9-425b-aec4-973588ef344b)
 
 
 
@@ -88,12 +148,19 @@ The sensor output was squared up by a comparator whose output went to the counte
 
 
 
-## Rover Control Workstation (RCW)
-
-The RCW is the computer system used on earth to assess the rover's position and to generate and send commands the operate the rover.
 
 
 
-This file is a work in progress. To be discussed is the radio hardware, power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
+### Commercial Off The Shelf parts:
+
+Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
+
+Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element material](https://www.ttelectronics.com/products/passive-components/potentiometers/6173) 4 of these are used for steering position feedback.
+
+'Bumper' contact switches are [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
 
 
+
+## This file is a work in progress. To be discussed is the radio hardware, power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
+
+[here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
