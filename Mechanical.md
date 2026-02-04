@@ -66,7 +66,9 @@ They are generally ambiguous, I have color coded the various instances of the sa
 - one dimension was found in a photogrammetry paper: "Taking the distances between point 1 and 4 or 2 and 3, the rover was measured to have a length of 41.6 and 42.8 cm, respectively, in excellent agreement with the nominal size of 41.6 cm."[^14]
 
 ## Direct measurements
-GearSkeptic on Youtube has access to a rover wheel, and he patiently fielded all my requests for measurements:
+[GearSkeptic](https://www.youtube.com/watch?v=QKSPk_0N4Jc) on Youtube has access to a rover wheel, and he patiently fielded all my requests for measurements.
+
+I really want to thank him a lot, because I asked for a lot of data points, and he responded gracefully. He also sent a lot of [close up pictures](/images/gear%20skeptic).
 
 - Rim diameter $${\color{cyan}120mm}$$
 - Tire width 70.76mm
