@@ -73,6 +73,7 @@ GearSkeptic on Youtube has access to a rover wheel, and he patiently fielded all
 - Cleat prominence 6.27mm
 - (...the cleats...) are 11mm wide.
 - The wheel width total (outside rim to outside rim) is $${\color{magenta}80mm}$$
+- The thickness of the metal at the hub hole is 1.5 mm
 - Outside rim to outer face of hub hole is 19.5 mm, and outer face of hub hole to far-side outer rim is 60.5 mm.
 - ID of central hole: 62 mm
 - Diameter of bolt circle (the imaginary ring passing through the bolt hole centers): 66 mm
