@@ -141,6 +141,8 @@ There is also a wide physical bumper on each side of the rover, connected by fla
 
 ## Rover Control Workstation (RCW)
 
+[old jpl website mentioning the RCW]https://web.archive.org/web/20160118204358/http://mars.jpl.nasa.gov/MPF/roverctrlnav/rcw.html
+
 The RCW is the computer system used on earth to assess the rover's status, position, and to generate and send commands the operate the rover. It was based on an SGI Onyx 2 computer.
 
 one document mentions "The ground operators' interface software is Silicon Graphics Inventor®-based" [Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
@@ -186,18 +188,68 @@ The sensor output was squared up by a comparator whose output went to the counte
 
 
 
-### Commercial Off The Shelf parts:
+### Drivetrain electromechanicals:
 
 Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
 
 Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element material](https://www.ttelectronics.com/products/passive-components/potentiometers/6173) 4 of these are used for steering position feedback.
 
-'Bumper' contact switches are 
-
-
 
 ## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations such as the APXS.
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
+
+
+
+
+
+
+info gleamed from https://web.archive.org/web/20160118204241/http://mars.jpl.nasa.gov/MPF/roverpwr/power.html
+
+Solar Array Technical Information
+Solar Cells		
+	Type			Gallium Arsenide on Germanium (GaAs/Ge)		
+	Size			2 x 4 cm, 5.5 mil thick		
+	Coverglass		3 mil, CMG		
+	Efficiency		>18% efficiency
+Solar Array		
+	Configuration		  13 parallel strings, 18 series cells per string		
+	Power              16.5 watts on Mars at noon								
+				         45 watts  1 sun/AMO (Earth)		
+	Operating Voltage	  14-18 volts		
+	Substrate          Nomex honeycomb				
+	Weight             0.340 kg		
+	Size               0.22 m2		
+	Survival Temp		-140 to +110 C
+Solar Array Contractor      Applied Solar Energy Corporation (ASEC)								
+                            City of Industry, CA
+ 
+Battery Technical Information
+Cells		
+	Chemistry		Lithium-Thionyl Chloride (Li-SOCl2)		
+	Size			D-Size		
+	Weight			118 grams
+	Capacity		+25C		12 amp-hrs						
+                 -20C		8 amp-hrs
+Batteries		
+	Number             3		
+	Cells Per Battery	  3 cells in series		
+	Size               40 mm dia, 186 mm length		
+	Weight             1.24 kg		
+	Operating Voltage	  8 - 11 volts
+Cell Contractor        SAFT America							
+                       Cockeysville, MD
+ 
+Power Electronics Technical Information
+Distribution Architecture	Single string w/graceful degradation
+User Voltages		
+	Main bus		8 to 18 volts		
+	Secondary		+/-12v, 9v, +/-7.5v, 5v, +/-5v, 3.3v
+Power Electronics Suppliers	Pico Electronics, Power Trends,								
+				Nation Semiconductor, Motorola,	Semtech
+
+
+
 
 
