@@ -248,11 +248,9 @@
     const tbody = document.createElement('tbody')
     tbody.id = 'contentArea'
     tbody.classList.add('clusterize-content')
-    const createCol = data => `<td>${data}</td>`
-    const createRow = row => `<tr>${row.map(createCol).join('')}</tr>`
     for (const row of data.slice(headerCount)) {
       const tr = document.createElement('tr')
-      for (const [idx, cell] of row.entries()) {
+      for (const [_idx, cell] of row.entries()) {
         const td = document.createElement('td')
         td.textContent = cell
         tr.appendChild(td)
@@ -271,7 +269,7 @@
     const PIXEL_REPR = [null, Uint8ClampedArray, Uint16Array]
     const bytes = await entry.file.arrayBuffer()
     const pds = parsePDS(await entry.file.text())
-    const pdsText = JSON.stringify(pds, null, 2)
+    const pdsText = jsonStringify(pds)
     const imgPos = pds['^IMAGE']
     if (imgPos === undefined) {
       return pdsText
@@ -374,6 +372,10 @@
     }
   }
 
+  function jsonStringify (colLabel) {
+    return JSON.stringify(colLabel, (key, value)=> typeof value ==='string' ? value.replace(/\n\s*/g, ' ') : value, 2)
+  }
+
   async function parseFile (hash) {
     const labelFileName = hash.slice(0, -4) + '.lbl'
     const labelDict = {}
@@ -438,7 +440,7 @@
                 return reader(rowView, colStart)
               }
             } else {
-              return rowView => null
+              return _rowView => null
             }
           })
           for (let i = 0; i < tableSizeBytes; i += tableRowSizeBytes) {
@@ -446,7 +448,7 @@
             const row = columnReaders.map(reader => reader(rowView))
             tableRows.push(row)
           }
-          const lblDict = Object.fromEntries(tableDef['COLUMN'].map(c => [c['NAME'], JSON.stringify(c, null, 2)]))
+          const lblDict = Object.fromEntries(tableDef['COLUMN'].map(c => [c['NAME'], jsonStringify(c)]))
           let htmlTable = generateHtmlTable(tableRows, 1, lblDict)
           let title = document.createElement('h2')
           title.textContent = tableName
@@ -458,7 +460,7 @@
         title.textContent = 'PDS data'
         result.appendChild(title)
         const desc = document.createElement('pre')
-        desc.textContent = JSON.stringify(pds, null, 2)
+        desc.textContent = jsonStringify(pds)
         result.appendChild(desc)
         return result
       }
@@ -473,7 +475,7 @@
         }
         const colLabels = labels['TABLE'][0]['COLUMN']
         for (const colLabel of colLabels) {
-          labelDict[colLabel.NAME] = JSON.stringify(colLabel, null, 2)
+          labelDict[colLabel.NAME] = jsonStringify(colLabel)
           headerRow.push(colLabel.NAME)
         }
       }
@@ -486,7 +488,7 @@
         const labels = parsePDS(await labelFileEntry.file.text())
         const colLabels = labels['UNCOMPRESSED_FILE'].find((o) => 'TABLE' in o)['TABLE'][0]['COLUMN']
         for (const colLabel of colLabels) {
-          labelDict[colLabel.NAME] = JSON.stringify(colLabel, null, 2)
+          labelDict[colLabel.NAME] = jsonStringify(colLabel)
         }
 
       }
