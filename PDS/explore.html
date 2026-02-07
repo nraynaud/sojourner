@@ -152,6 +152,38 @@
   function isPDS (content) {
     return content.startsWith(PDS_PREFIX)
   }
+  async function isBlobPDS (blob) {
+    return await blob.slice(0, PDS_PREFIX.length).text() === PDS_PREFIX
+  }
+
+  async function findPDSHeaderSize (blob) {
+    const firstSector = await blob.slice(0, 1024).text()
+    const lines = firstSector.split('\n')
+    const rootObject = {}
+    for (let line of lines) {
+      line = line.trim()
+      if (line.startsWith('/*')) {
+        continue
+      }
+      let [key, value] = line.split('=').map(e => e.trim())
+      if (key === 'OBJECT' || key.startsWith('^')) {
+        break
+      }
+      rootObject[key] = value
+    }
+    if ('RECORD_BYTES' in rootObject) {
+      const recBytes = parseInt(rootObject['RECORD_BYTES'])
+      return parseInt(rootObject['LABEL_RECORDS']) * recBytes
+    }
+    // the entire file is a "label"
+    return blob.size
+  }
+
+  async function parsePDSHeader (blob) {
+    const headerSize = await findPDSHeaderSize(blob)
+    const header = await blob.slice(0, headerSize).text()
+    return parsePDS(header)
+  }
 
   function parsePDS (content) {
     const MULTILINE_MARKERS = {
@@ -210,6 +242,7 @@
         }
       }
     }
+    return rootObject
   }
 
   function parseTAB (content) {
@@ -268,7 +301,7 @@
     // spec: https://pds.nasa.gov/datastandards/pds3/standards/sr/StdRef_20090227_v3.8.pdf
     const PIXEL_REPR = [null, Uint8ClampedArray, Uint16Array]
     const bytes = await entry.file.arrayBuffer()
-    const pds = parsePDS(await entry.file.text())
+    const pds = await parsePDSHeader(entry.file)
     const pdsText = jsonStringify(pds)
     const imgPos = pds['^IMAGE']
     if (imgPos === undefined) {
@@ -373,7 +406,66 @@
   }
 
   function jsonStringify (colLabel) {
-    return JSON.stringify(colLabel, (key, value)=> typeof value ==='string' ? value.replace(/\n\s*/g, ' ') : value, 2)
+    return JSON.stringify(colLabel, (key, value) => typeof value === 'string' ? value.replace(/\n\s*/g, ' ') : value, 2)
+  }
+
+  async function parsePdsTabFile (file) {
+    let pds = await parsePDSHeader(file)
+    if (pds['RECORD_TYPE'] !== 'FIXED_LENGTH') {
+      return pds
+    }
+    const bytes = await file.arrayBuffer()
+    let recordSize = parseInt(pds['RECORD_BYTES'])
+    const tables = []
+    const result = document.createElement('div')
+    for (const tableName of pds['$objectNames']) {
+      console.log('table name', tableName)
+      // those indices start at freaking 1!!!
+      const tableStart = (parseInt(pds[`^${tableName}`]) - 1) * recordSize
+      let tableDef = pds[tableName][0]
+      const tableRowSizeBytes = parseInt(tableDef['ROW_BYTES'])
+      const tableSizeBytes = parseInt(tableDef['ROWS']) * tableRowSizeBytes
+      const tableBytes = bytes.slice(tableStart, tableStart + tableSizeBytes)
+      const tableRows = []
+      tableRows.push(tableDef['COLUMN'].map(c => c['NAME']))
+      const columnReaders = tableDef['COLUMN'].map(c => {
+        const colBytes = parseInt(c['BYTES'])
+        const itemCount = 'ITEMS' in c ? parseInt(c['ITEMS']) : 1
+        const itemSize = 'ITEM_BYTES' in c ? parseInt(c['ITEM_BYTES']) : colBytes
+        const itemStride = 'ITEM_OFFSET' in c ? parseInt(c['ITEM_OFFSET']) : itemSize
+        // those indices start at freaking 1!!!
+        const colStart = c['START_BYTE'] - 1
+        const reader = getBufferViewReader(c['DATA_TYPE'], itemCount, itemSize, itemStride)
+        if (reader) {
+          return rowView => {
+            console.log('reading ', c['NAME'])
+            return reader(rowView, colStart)
+          }
+        } else {
+          return _rowView => null
+        }
+      })
+      for (let i = 0; i < tableSizeBytes; i += tableRowSizeBytes) {
+        const rowView = new DataView(tableBytes, i, tableRowSizeBytes)
+        const row = columnReaders.map(reader => reader(rowView))
+        tableRows.push(row)
+      }
+      const lblDict = Object.fromEntries(tableDef['COLUMN'].map(c => [c['NAME'], jsonStringify(c)]))
+      let htmlTable = generateHtmlTable(tableRows, 1, lblDict)
+      let title = document.createElement('h2')
+      title.textContent = tableName
+      result.appendChild(title)
+      result.appendChild(htmlTable)
+      tables.push(htmlTable)
+    }
+    let title = document.createElement('h2')
+    title.textContent = 'PDS data'
+    result.appendChild(title)
+    const desc = document.createElement('pre')
+    desc.textContent = jsonStringify(pds)
+    result.appendChild(desc)
+    return result
+
   }
 
   async function parseFile (hash) {
@@ -384,14 +476,14 @@
       return 'couldn\'t parse file :( ' + hash
     }
     const extension = '.' + entry.name.split('.').pop()
-    if (['.txt', '.ct', '.at', '.nat', '.rt', '.pef', '.pt'].includes(extension)) {
+    if (['.txt', '.ct', '.at', '.nat', '.rt', '.pef', '.pt', '.npt', '.pt', '.nct', '.nrt'].includes(extension)) {
       return await entry.file.text()
     }
     if (['.lbl', '.cat', '.img', '.haf'].includes(extension)) {
       console.log('parsing ', entry.name)
       return parseImage(entry)
     }
-    if (['.gif', '.jpg'].includes(extension)) {
+    if (['.gif', '.jpg', '.tif'].includes(extension)) {
       const img = document.createElement('img')
       img.classList.add('displayedimg')
       img.src = URL.createObjectURL(entry.file)
@@ -406,63 +498,9 @@
       return frame
     }
     if (extension === '.tab') {
-      let content = await entry.file.text()
-      if (isPDS(content)) {
-        let pds = parsePDS(content)
-        if (pds['RECORD_TYPE'] !== 'FIXED_LENGTH') {
-          return pds
-        }
-        const bytes = await entry.file.arrayBuffer()
-        let recordSize = parseInt(pds['RECORD_BYTES'])
-        const tables = []
-        const result = document.createElement('div')
-        for (const tableName of pds['$objectNames']) {
-          console.log('table name', tableName)
-          // those indices start at freaking 1!!!
-          const tableStart = (parseInt(pds[`^${tableName}`]) - 1) * recordSize
-          let tableDef = pds[tableName][0]
-          const tableRowSizeBytes = parseInt(tableDef['ROW_BYTES'])
-          const tableSizeBytes = parseInt(tableDef['ROWS']) * tableRowSizeBytes
-          const tableBytes = bytes.slice(tableStart, tableStart + tableSizeBytes)
-          const tableRows = []
-          tableRows.push(tableDef['COLUMN'].map(c => c['NAME']))
-          const columnReaders = tableDef['COLUMN'].map(c => {
-            const colBytes = parseInt(c['BYTES'])
-            const itemCount = 'ITEMS' in c ? parseInt(c['ITEMS']) : 1
-            const itemSize = 'ITEM_BYTES' in c ? parseInt(c['ITEM_BYTES']) : colBytes
-            const itemStride = 'ITEM_OFFSET' in c ? parseInt(c['ITEM_OFFSET']) : itemSize
-            // those indices start at freaking 1!!!
-            const colStart = c['START_BYTE'] - 1
-            const reader = getBufferViewReader(c['DATA_TYPE'], itemCount, itemSize, itemStride)
-            if (reader) {
-              return rowView => {
-                console.log('reading ', c['NAME'])
-                return reader(rowView, colStart)
-              }
-            } else {
-              return _rowView => null
-            }
-          })
-          for (let i = 0; i < tableSizeBytes; i += tableRowSizeBytes) {
-            const rowView = new DataView(tableBytes, i, tableRowSizeBytes)
-            const row = columnReaders.map(reader => reader(rowView))
-            tableRows.push(row)
-          }
-          const lblDict = Object.fromEntries(tableDef['COLUMN'].map(c => [c['NAME'], jsonStringify(c)]))
-          let htmlTable = generateHtmlTable(tableRows, 1, lblDict)
-          let title = document.createElement('h2')
-          title.textContent = tableName
-          result.appendChild(title)
-          result.appendChild(htmlTable)
-          tables.push(htmlTable)
-        }
-        let title = document.createElement('h2')
-        title.textContent = 'PDS data'
-        result.appendChild(title)
-        const desc = document.createElement('pre')
-        desc.textContent = jsonStringify(pds)
-        result.appendChild(desc)
-        return result
+      let file = entry.file
+      if (await isBlobPDS(file)) {
+        return parsePdsTabFile(file)
       }
       let labelFileName = hash.slice(0, -4) + '.lbl'
       const labelFileEntry = await getFile(labelFileName)
@@ -479,7 +517,7 @@
           headerRow.push(colLabel.NAME)
         }
       }
-      return generateHtmlTable([headerRow].concat(parseTAB(content)), 1, labelDict)
+      return generateHtmlTable([headerRow].concat(parseTAB(await file.text())), 1, labelDict)
     }
     if (extension === '.csv') {
       console.log('labelFileName', labelFileName)
