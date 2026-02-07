@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PDS explorer</title>
+    <style>
+        body, html {
+            width: 100%;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-flow: column nowrap;
+            overflow: hidden;
+        }
+
+        #wholeApp {
+            min-height: 0;
+            flex-grow: 1;
+            flex-shrink: 1;
+            display: flex;
+            flex-flow: row nowrap;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #explore {
+            min-width: 300px;
+            margin: 0;
+            flex: 1 1;
+            overflow: auto;
+        }
+
+        #detail {
+            flex: 3;
+            display: flex;
+            flex-flow: column nowrap;
+            overflow: scroll;
+        }
+
+        .waiting {
+            cursor: wait !important;
+        }
+
+        .displayedimg {
+            width: auto;
+            height: 100%;
+        }
+
+        .htmlframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .clusterize {
+            flex: 1 1;
+            display: flex;
+            flex-flow: column nowrap;
+        }
+
+        .clusterize-scroll {
+            flex: 2 2;
+            max-height: none;
+        }
+
+        h1 {
+            margin: 0;
+            padding: 10px;
+        }
+
+        li.active {
+            background-color: #a0a0ff;
+            color: #000;
+            font-weight: bold;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            /*   position: sticky;*/
+            writing-mode: sideways-lr;
+            text-orientation: mixed;
+            z-index: 100;
+            background-color: green;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .thead {
+            flex: 0 1;
+        }
+    </style>
+</head>
+<body ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
+<h1>Cobbled together PDS Mars Pathfinder Explorer</h1>
+<div id="wholeApp">
+    <div id="explore">
+        drop a <a href="https://planetarydata.jpl.nasa.gov/img/data/mpf/">PDS folder</a> here.
+    </div>
+    <div id="detail">
+    </div>
+</div>
+
+<script>
+  const explore = document.getElementById('explore')
+  const detail = document.getElementById('detail')
+  let FILES = {}
+
+  async function readDir (entry) {
+    const dirReader = entry.createReader()
+    const entries = []
+    while (true) {
+      const results = await new Promise((resolve, reject) => {
+        dirReader.readEntries(resolve, reject)
+      })
+
+      if (!results.length) {
+        break
+      }
+
+      for (const entry of results) {
+        entries.push(entry)
+      }
+    }
+    return entries
+  }
+
+  function parseCSV (content) {
+    const result = []
+    const lines = content.split('\n')
+    for (const line of lines) {
+      const fields = line.split(',').map(f => f.trim())
+      result.push(fields)
+    }
+    return result
+  }
+
+  const PDS_PREFIX = 'PDS_VERSION_ID'
+
+  function isPDS (content) {
+    return content.startsWith(PDS_PREFIX)
+  }
+
+  function parsePDS (content) {
+    const MULTILINE_MARKERS = {
+      '"': '"',
+      '{': '}',
+      '(': ')'
+    }
+    console.assert(isPDS(content))
+    const lines = content.split('\n')
+    const objStack = []
+    const rootObject = {'$objectNames': []}
+    let currentObject = rootObject
+    while (lines.length > 0) {
+      const line = lines.shift().trim()
+      if (!line.length) {
+        continue
+      }
+      let [key, value] = line.split('=').map(e => e.trim())
+      if (key.startsWith('/*')) {
+        // skip comment
+        const remainder = key.split('*/')[1]
+        key = remainder.trim()
+        if (key.length === 0) {
+          continue
+        }
+      }
+      if (key === 'END')
+        return currentObject
+      if (value[0] in MULTILINE_MARKERS) {
+        const closing = MULTILINE_MARKERS[value[0]]
+        if (!(value.length > 1 && value.endsWith(closing))) {
+          const multilinesValue = [value]
+          do {
+            multilinesValue.push(lines.shift().trimEnd()) // leave indentation alone
+          } while (!multilinesValue[multilinesValue.length - 1].endsWith(closing))
+          value = multilinesValue.join('\n')
+        }
+        value = value.slice(1, value.length - 1) //remove quotes
+      }
+      if (key === 'OBJECT') {
+        const newObj = {}
+        if (!(value in currentObject)) {
+          currentObject[value] = []
+          if (currentObject === rootObject) {
+            currentObject['$objectNames'].push(value)
+          }
+        }
+        currentObject[value].push(newObj)
+        objStack.push(currentObject)
+        currentObject = newObj
+      } else {
+        if (key === 'END_OBJECT') {
+          currentObject = objStack.pop()
+        } else {
+          currentObject[key] = value
+        }
+      }
+    }
+  }
+
+  function parseTAB (content) {
+    return parseCSV(content)
+  }
+
+  function generateHtmlTable (data, headerCount, labelDict) {
+    const div = document.createElement('div')
+    div.classList.add('clusterize')
+    const table = document.createElement('table')
+    const thead = document.createElement('thead')
+    thead.classList.add('thead')
+    let columnArray = []
+    if (labelDict) {
+      columnArray = []
+      for (const col of data[headerCount - 1]) {
+        columnArray.push(labelDict[col])
+      }
+    }
+    for (const row of data.slice(0, headerCount)) {
+      const tr = document.createElement('tr')
+      for (const [idx, cell] of row.entries()) {
+        const th = document.createElement('th')
+        th.textContent = cell
+        th.title = columnArray[idx]
+        tr.appendChild(th)
+      }
+      thead.appendChild(tr)
+    }
+    table.appendChild(thead)
+    const scrollDiv = document.createElement('div')
+    scrollDiv.classList.add('clusterize-scroll')
+    scrollDiv.id = 'scrollArea'
+    div.appendChild(scrollDiv)
+    const contentTable = table
+    const tbody = document.createElement('tbody')
+    tbody.id = 'contentArea'
+    tbody.classList.add('clusterize-content')
+    const createCol = data => `<td>${data}</td>`
+    const createRow = row => `<tr>${row.map(createCol).join('')}</tr>`
+    for (const row of data.slice(headerCount)) {
+      const tr = document.createElement('tr')
+      for (const [idx, cell] of row.entries()) {
+        const td = document.createElement('td')
+        td.textContent = cell
+        tr.appendChild(td)
+      }
+      tbody.appendChild(tr)
+    }
+    contentTable.appendChild(tbody)
+    scrollDiv.appendChild(contentTable)
+
+    div.appendChild(table)
+    return div
+  }
+
+  async function parseImage (entry) {
+    // spec: https://pds.nasa.gov/datastandards/pds3/standards/sr/StdRef_20090227_v3.8.pdf
+    const PIXEL_REPR = [null, Uint8ClampedArray, Uint16Array]
+    const bytes = await entry.file.arrayBuffer()
+    const pds = parsePDS(await entry.file.text())
+    const pdsText = JSON.stringify(pds, null, 2)
+    const imgPos = pds['^IMAGE']
+    if (imgPos === undefined) {
+      return pdsText
+    }
+    const recLen = pds['RECORD_BYTES']
+    const imageStart = (imgPos - 1) * recLen
+    const imgObj = pds['IMAGE'][0]
+    const lines = parseInt(imgObj['LINES'])
+    const samplesPerLine = parseInt(imgObj['LINE_SAMPLES'])
+    const sampleBytes = parseInt(imgObj['SAMPLE_BITS']) / 8
+    let MAX_VALUE = 8 ** sampleBytes - 1
+    if ('SAMPLE_BIT_MASK' in imgObj) {
+      const [base, mask] = imgObj['SAMPLE_BIT_MASK'].split('#')
+      MAX_VALUE = parseInt(mask, parseInt(base))
+    }
+    const bands = parseInt(imgObj['BANDS'])
+    const pixelSize = sampleBytes * bands
+    const imageSpan = pixelSize * samplesPerLine * lines
+    const image = bytes.slice(imageStart, imageSpan)
+    const ctor = PIXEL_REPR[sampleBytes]
+    const pixels = new ctor(image)
+    const div = document.createElement('div')
+    const canvas = document.createElement('canvas')
+    canvas.width = samplesPerLine
+    canvas.height = lines
+
+    function readPix (pixels, x, y, bands, bandStorageType, maxValue) {
+      const pix = [0, 0, 0, 255]
+      if (bands === 3 && ['SAMPLE_INTERLEAVED'].includes(bandStorageType)) {
+        pix[0] = Math.floor(pixels[x + y * samplesPerLine * bands + 0] / maxValue * 255)
+        pix[1] = Math.floor(pixels[x + y * samplesPerLine * bands + 1] / maxValue * 255)
+        pix[2] = Math.floor(pixels[x + y * samplesPerLine * bands + 2] / maxValue * 255)
+      }
+      if (bands === 3 && ['BAND_SEQUENTIAL'].includes(bandStorageType)) {
+        const imgSize = sampleBytes * samplesPerLine * lines
+        pix[0] = Math.floor(pixels[(x + y * samplesPerLine)] / maxValue * 255)
+        pix[1] = Math.floor(pixels[(x + y * samplesPerLine) + imgSize] / maxValue * 255)
+        pix[2] = Math.floor(pixels[(x + y * samplesPerLine) + imgSize * 2] / maxValue * 255)
+      }
+      if (bands === 1) {
+        const v = Math.floor(pixels[x + y * samplesPerLine * bands] / maxValue * 255)
+        pix[0] = v
+        pix[1] = v
+        pix[2] = v
+      }
+      return pix
+    }
+
+    const imgBuffer = new ImageData(samplesPerLine, lines)
+    for (let x = 0; x < samplesPerLine; x++) {
+      for (let y = 0; y < lines; y++) {
+        const pix = readPix(pixels, x, y, bands, imgObj['BAND_STORAGE_TYPE'], MAX_VALUE)
+        imgBuffer.data[(x + y * samplesPerLine) * 4] = pix[0]
+        imgBuffer.data[(x + y * samplesPerLine) * 4 + 1] = pix[1]
+        imgBuffer.data[(x + y * samplesPerLine) * 4 + 2] = pix[2]
+        imgBuffer.data[(x + y * samplesPerLine) * 4 + 3] = pix[3]
+      }
+    }
+    const ctx = canvas.getContext('bitmaprenderer')
+    ctx.transferFromImageBitmap(await window.createImageBitmap(imgBuffer))
+    div.appendChild(canvas)
+    const pre = document.createElement('pre')
+    pre.textContent = pdsText
+    div.appendChild(pre)
+    return div
+  }
+
+  async function getFile (hash) {
+    const entry = FILES[hash]
+    if (!entry) {
+      return null
+    }
+    if (!entry.file) {
+      entry.file = await new Promise((resolve, reject) => {entry.fileEntry.file(resolve, reject)})
+    }
+    return entry
+  }
+
+  const DATAVIEW_READERS = {
+    'LSB_UNSIGNED_INTEGER_1': (dView, pos) => dView.getUint8(pos),
+    'LSB_SIGNED_INTEGER_1': (dView, pos) => dView.getInt8(pos),
+    'LSB_UNSIGNED_INTEGER_2': (dView, pos) => dView.getUint16(pos, true),
+    'LSB_SIGNED_INTEGER_2': (dView, pos) => dView.getInt16(pos, true),
+  }
+
+  function getBufferViewReader (dataType, itemCount, itemSize, itemStride) {
+    const elementReader = DATAVIEW_READERS[`${dataType}_${itemSize}`]
+    if (!elementReader) {
+      return null
+    }
+    if (itemCount === 1) {
+      return elementReader
+    }
+    return (dView, pos) => {
+      const res = []
+      for (let i = 0; i < itemCount; i++) {
+        res.push(elementReader(dView, pos + i * itemStride))
+      }
+      return res
+    }
+  }
+
+  async function parseFile (hash) {
+    const labelFileName = hash.slice(0, -4) + '.lbl'
+    const labelDict = {}
+    const entry = await getFile(hash)
+    if (!entry) {
+      return 'couldn\'t parse file :( ' + hash
+    }
+    const extension = '.' + entry.name.split('.').pop()
+    if (['.txt', '.ct', '.at', '.nat', '.rt', '.pef', '.pt'].includes(extension)) {
+      return await entry.file.text()
+    }
+    if (['.lbl', '.cat', '.img', '.haf'].includes(extension)) {
+      console.log('parsing ', entry.name)
+      return parseImage(entry)
+    }
+    if (['.gif', '.jpg'].includes(extension)) {
+      const img = document.createElement('img')
+      img.classList.add('displayedimg')
+      img.src = URL.createObjectURL(entry.file)
+      img.alt = entry.name
+      return img
+    }
+    if (['.html', '.htm', '.pdf'].includes(extension)) {
+      const url = URL.createObjectURL(entry.file)
+      const frame = document.createElement('iframe')
+      frame.src = url
+      frame.classList.add('htmlframe')
+      return frame
+    }
+    if (extension === '.tab') {
+      let content = await entry.file.text()
+      if (isPDS(content)) {
+        let pds = parsePDS(content)
+        if (pds['RECORD_TYPE'] !== 'FIXED_LENGTH') {
+          return pds
+        }
+        const bytes = await entry.file.arrayBuffer()
+        let recordSize = parseInt(pds['RECORD_BYTES'])
+        const tables = []
+        const result = document.createElement('div')
+        for (const tableName of pds['$objectNames']) {
+          console.log('table name', tableName)
+          // those indices start at freaking 1!!!
+          const tableStart = (parseInt(pds[`^${tableName}`]) - 1) * recordSize
+          let tableDef = pds[tableName][0]
+          const tableRowSizeBytes = parseInt(tableDef['ROW_BYTES'])
+          const tableSizeBytes = parseInt(tableDef['ROWS']) * tableRowSizeBytes
+          const tableBytes = bytes.slice(tableStart, tableStart + tableSizeBytes)
+          const tableRows = []
+          tableRows.push(tableDef['COLUMN'].map(c => c['NAME']))
+          const columnReaders = tableDef['COLUMN'].map(c => {
+            const colBytes = parseInt(c['BYTES'])
+            const itemCount = 'ITEMS' in c ? parseInt(c['ITEMS']) : 1
+            const itemSize = 'ITEM_BYTES' in c ? parseInt(c['ITEM_BYTES']) : colBytes
+            const itemStride = 'ITEM_OFFSET' in c ? parseInt(c['ITEM_OFFSET']) : itemSize
+            // those indices start at freaking 1!!!
+            const colStart = c['START_BYTE'] - 1
+            const reader = getBufferViewReader(c['DATA_TYPE'], itemCount, itemSize, itemStride)
+            if (reader) {
+              return rowView => {
+                console.log('reading ', c['NAME'])
+                return reader(rowView, colStart)
+              }
+            } else {
+              return rowView => null
+            }
+          })
+          for (let i = 0; i < tableSizeBytes; i += tableRowSizeBytes) {
+            const rowView = new DataView(tableBytes, i, tableRowSizeBytes)
+            const row = columnReaders.map(reader => reader(rowView))
+            tableRows.push(row)
+          }
+          const lblDict = Object.fromEntries(tableDef['COLUMN'].map(c => [c['NAME'], JSON.stringify(c, null, 2)]))
+          let htmlTable = generateHtmlTable(tableRows, 1, lblDict)
+          let title = document.createElement('h2')
+          title.textContent = tableName
+          result.appendChild(title)
+          result.appendChild(htmlTable)
+          tables.push(htmlTable)
+        }
+        let title = document.createElement('h2')
+        title.textContent = 'PDS data'
+        result.appendChild(title)
+        const desc = document.createElement('pre')
+        desc.textContent = JSON.stringify(pds, null, 2)
+        result.appendChild(desc)
+        return result
+      }
+      let labelFileName = hash.slice(0, -4) + '.lbl'
+      const labelFileEntry = await getFile(labelFileName)
+      let labelDict = {}
+      const headerRow = []
+      if (labelFileEntry) {
+        let labels = parsePDS(await labelFileEntry.file.text())
+        if (!('TABLE' in labels)) {
+          labels = labels['UNCOMPRESSED_FILE'].find((o) => 'TABLE' in o)
+        }
+        const colLabels = labels['TABLE'][0]['COLUMN']
+        for (const colLabel of colLabels) {
+          labelDict[colLabel.NAME] = JSON.stringify(colLabel, null, 2)
+          headerRow.push(colLabel.NAME)
+        }
+      }
+      return generateHtmlTable([headerRow].concat(parseTAB(content)), 1, labelDict)
+    }
+    if (extension === '.csv') {
+      console.log('labelFileName', labelFileName)
+      const labelFileEntry = await getFile(labelFileName)
+      if (labelFileEntry) {
+        const labels = parsePDS(await labelFileEntry.file.text())
+        const colLabels = labels['UNCOMPRESSED_FILE'].find((o) => 'TABLE' in o)['TABLE'][0]['COLUMN']
+        for (const colLabel of colLabels) {
+          labelDict[colLabel.NAME] = JSON.stringify(colLabel, null, 2)
+        }
+
+      }
+      return generateHtmlTable(parseCSV(await entry.file.text()), 4, labelDict)
+    }
+  }
+
+  async function dropHandler (ev) {
+    console.log('File(s) dropped', [...ev.dataTransfer.items].map(i => ({
+      type: i.type,
+      kind: i.kind
+    })), ev.dataTransfer.types.slice(), [...ev.dataTransfer.files])
+
+    ev.preventDefault()
+    if (ev.dataTransfer.items) {
+      for (const item of [...ev.dataTransfer.items]) {
+        const i = [...ev.dataTransfer.items].indexOf(item)
+        // If dropped items aren't files, reject them
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry()
+          console.log(`… file[${i}].fullPath = ${entry.fullPath}`)
+          console.log(`… file[${i}].isDirectory = ${entry.isDirectory}`)
+          if (entry.isDirectory) {
+            window.location.hash = ''
+            const ul = document.createElement('ul')
+            explore.innerHTML = ''
+            const collectedDirs = []
+            const collectedFiles = []
+            const toVisit = [entry]
+            while (toVisit.length) {
+              const dir = toVisit.pop()
+              collectedDirs.push(dir)
+              const entries = await readDir(dir)
+              collectedFiles.push(...(entries.filter(e => e.isFile)))
+              const subDirs = entries.filter(e => e.isDirectory)
+              toVisit.push(...subDirs)
+            }
+            collectedFiles.sort((a, b) => (a.fullPath.localeCompare(b.fullPath)))
+
+            const hash = window.location.hash
+            addEventListener('hashchange', async (_event) => {
+              console.log('hashchange', URL.parse(_event.oldURL).hash, '->', URL.parse(_event.newURL).hash)
+              const currentActive = document.querySelector('li.active')
+              if (currentActive) {
+                currentActive.classList.remove('active')
+              }
+              const element = document.querySelector(`li a[href="${window.location.hash}"]`)
+              if (element) {
+                detail.classList.add('waiting')
+                detail.innerHTML = ''
+                element.parentElement.classList.add('active')
+                try {
+
+                  const result = await parseFile(window.location.hash)
+                  if (result instanceof HTMLElement) {
+                    detail.innerHTML = ''
+                    detail.appendChild(result)
+                    if (result.afterInsert) {
+                      result.afterInsert()
+                    }
+                  } else {
+                    detail.innerHTML = ''
+                    const pre = document.createElement('pre')
+                    pre.textContent = result
+                    detail.appendChild(pre)
+                  }
+                } finally {
+                  detail.classList.remove('waiting')
+                }
+              }
+            })
+            FILES = {}
+            for (const entry of collectedFiles) {
+              const link = '#' + entry.fullPath
+              const li = document.createElement('li')
+              if (link === hash) {
+                li.classList.add('active')
+              }
+              const a = document.createElement('a')
+              a.textContent = entry.fullPath
+              a.href = link
+              li.id = entry.fullPath
+              li.appendChild(a)
+              ul.appendChild(li)
+            }
+            explore.appendChild(ul)
+            for (const fileEntry of collectedFiles) {
+              FILES['#' + fileEntry.fullPath] = {name: fileEntry.fullPath, fileEntry}
+            }
+          }
+        }
+      }
+    } else {
+      // Use DataTransfer interface to access the file(s)
+      [...ev.dataTransfer.files].forEach((file, i) => {
+        console.log(`… file[${i}].name = ${file.name}`)
+      })
+    }
+  }
+
+  function dragOverHandler (ev) {
+    console.log('File(s) in drop zone')
+
+    // Prevent default behavior (Prevent file from being opened)
+    ev.preventDefault()
+  }
+</script>
+</body>
+</html>
