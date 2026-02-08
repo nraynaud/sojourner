@@ -152,6 +152,7 @@
   function isPDS (content) {
     return content.startsWith(PDS_PREFIX)
   }
+
   async function isBlobPDS (blob) {
     return await blob.slice(0, PDS_PREFIX.length).text() === PDS_PREFIX
   }
@@ -299,7 +300,7 @@
 
   async function parseImage (entry) {
     // spec: https://pds.nasa.gov/datastandards/pds3/standards/sr/StdRef_20090227_v3.8.pdf
-    const PIXEL_REPR = [null, Uint8ClampedArray, Uint16Array]
+    /** @type {ArrayBuffer}*/
     const bytes = await entry.file.arrayBuffer()
     const pds = await parsePDSHeader(entry.file)
     const pdsText = jsonStringify(pds)
@@ -321,29 +322,32 @@
     const bands = parseInt(imgObj['BANDS'])
     const pixelSize = sampleBytes * bands
     const imageSpan = pixelSize * samplesPerLine * lines
-    const image = bytes.slice(imageStart, imageSpan)
-    const ctor = PIXEL_REPR[sampleBytes]
-    const pixels = new ctor(image)
+    const image = bytes.slice(imageStart, imageStart + imageSpan)
+    const pixelView = new DataView(image)
+    const sampleReader = getBufferViewReader(imgObj['SAMPLE_TYPE'], 1, sampleBytes)
     const div = document.createElement('div')
     const canvas = document.createElement('canvas')
     canvas.width = samplesPerLine
     canvas.height = lines
 
-    function readPix (pixels, x, y, bands, bandStorageType, maxValue) {
+    function readPix (pixelView, x, y, bands, bandStorageType, maxValue) {
       const pix = [0, 0, 0, 255]
-      if (bands === 3 && ['SAMPLE_INTERLEAVED'].includes(bandStorageType)) {
-        pix[0] = Math.floor(pixels[x + y * samplesPerLine * bands + 0] / maxValue * 255)
-        pix[1] = Math.floor(pixels[x + y * samplesPerLine * bands + 1] / maxValue * 255)
-        pix[2] = Math.floor(pixels[x + y * samplesPerLine * bands + 2] / maxValue * 255)
+      let basePosition = (x + y * samplesPerLine)
+      if (bands === 3 && bandStorageType === 'SAMPLE_INTERLEAVED') {
+        const redPosition = basePosition * bands
+        pix[0] = Math.floor(sampleReader(pixelView, redPosition * sampleBytes) / maxValue * 255)
+        pix[1] = Math.floor(sampleReader(pixelView, (redPosition + 1) * sampleBytes) / maxValue * 255)
+        pix[2] = Math.floor(sampleReader(pixelView, (redPosition + 2) * sampleBytes) / maxValue * 255)
       }
-      if (bands === 3 && ['BAND_SEQUENTIAL'].includes(bandStorageType)) {
-        const imgSize = sampleBytes * samplesPerLine * lines
-        pix[0] = Math.floor(pixels[(x + y * samplesPerLine)] / maxValue * 255)
-        pix[1] = Math.floor(pixels[(x + y * samplesPerLine) + imgSize] / maxValue * 255)
-        pix[2] = Math.floor(pixels[(x + y * samplesPerLine) + imgSize * 2] / maxValue * 255)
+      if (bands === 3 && bandStorageType === 'BAND_SEQUENTIAL') {
+        const imgSize = samplesPerLine * lines
+        pix[0] = Math.floor(sampleReader(pixelView, basePosition * sampleBytes) / maxValue * 255)
+        pix[1] = Math.floor(sampleReader(pixelView, (basePosition + imgSize) * sampleBytes) / maxValue * 255)
+        pix[2] = Math.floor(sampleReader(pixelView, (basePosition + imgSize * 2) * sampleBytes) / maxValue * 255)
       }
       if (bands === 1) {
-        const v = Math.floor(pixels[x + y * samplesPerLine * bands] / maxValue * 255)
+        const pixel = sampleReader(pixelView, basePosition * sampleBytes)
+        const v = Math.floor(pixel / maxValue * 255)
         pix[0] = v
         pix[1] = v
         pix[2] = v
@@ -354,11 +358,12 @@
     const imgBuffer = new ImageData(samplesPerLine, lines)
     for (let x = 0; x < samplesPerLine; x++) {
       for (let y = 0; y < lines; y++) {
-        const pix = readPix(pixels, x, y, bands, imgObj['BAND_STORAGE_TYPE'], MAX_VALUE)
-        imgBuffer.data[(x + y * samplesPerLine) * 4] = pix[0]
-        imgBuffer.data[(x + y * samplesPerLine) * 4 + 1] = pix[1]
-        imgBuffer.data[(x + y * samplesPerLine) * 4 + 2] = pix[2]
-        imgBuffer.data[(x + y * samplesPerLine) * 4 + 3] = pix[3]
+        const pix = readPix(pixelView, x, y, bands, imgObj['BAND_STORAGE_TYPE'], MAX_VALUE)
+        let redIndex = (x + y * samplesPerLine) * 4
+        imgBuffer.data[redIndex] = pix[0]
+        imgBuffer.data[redIndex + 1] = pix[1]
+        imgBuffer.data[redIndex + 2] = pix[2]
+        imgBuffer.data[redIndex + 3] = pix[3]
       }
     }
     const ctx = canvas.getContext('bitmaprenderer')
@@ -383,12 +388,24 @@
 
   const DATAVIEW_READERS = {
     'LSB_UNSIGNED_INTEGER_1': (dView, pos) => dView.getUint8(pos),
+    'MSB_UNSIGNED_INTEGER_1': (dView, pos) => dView.getUint8(pos),
     'LSB_SIGNED_INTEGER_1': (dView, pos) => dView.getInt8(pos),
+    'MSB_SIGNED_INTEGER_1': (dView, pos) => dView.getInt8(pos),
     'LSB_UNSIGNED_INTEGER_2': (dView, pos) => dView.getUint16(pos, true),
+    'MSB_UNSIGNED_INTEGER_2': (dView, pos) => dView.getUint16(pos, false),
     'LSB_SIGNED_INTEGER_2': (dView, pos) => dView.getInt16(pos, true),
+    'MSB_SIGNED_INTEGER_2': (dView, pos) => dView.getInt16(pos, false),
   }
 
-  function getBufferViewReader (dataType, itemCount, itemSize, itemStride) {
+  /**
+   * @param {*} dataType
+   * @param {number} itemCount
+   * @param {number} itemSize
+   * @param {number} itemStride
+   * @returns {(dView:DataView, pos:number)=>(number[]|number)}
+   *
+   */
+  function getBufferViewReader (dataType, itemCount, itemSize, itemStride = itemSize) {
     const elementReader = DATAVIEW_READERS[`${dataType}_${itemSize}`]
     if (!elementReader) {
       return null
@@ -476,7 +493,7 @@
       return 'couldn\'t parse file :( ' + hash
     }
     const extension = '.' + entry.name.split('.').pop()
-    if (['.txt', '.ct', '.at', '.nat', '.rt', '.pef', '.pt', '.npt', '.pt', '.nct', '.nrt'].includes(extension)) {
+    if (['.txt', '.ct', '.at', '.nat', '.rt', '.pef', '.pt', '.npt', '.pt', '.nct', '.nrt', '.asc'].includes(extension)) {
       return await entry.file.text()
     }
     if (['.lbl', '.cat', '.img', '.haf'].includes(extension)) {
@@ -534,6 +551,40 @@
     }
   }
 
+  async function hashChangeListener (_event) {
+    console.log('hashchange', URL.parse(_event.oldURL).hash, '->', URL.parse(_event.newURL).hash)
+    const currentActive = document.querySelector('li.active')
+    if (currentActive) {
+      currentActive.classList.remove('active')
+    }
+    const element = document.querySelector(`li a[href="${window.location.hash}"]`)
+    if (element) {
+      detail.classList.add('waiting')
+      detail.innerHTML = ''
+      element.parentElement.classList.add('active')
+      try {
+
+        const result = await parseFile(window.location.hash)
+        if (result instanceof HTMLElement) {
+          detail.innerHTML = ''
+          detail.appendChild(result)
+          if (result.afterInsert) {
+            result.afterInsert()
+          }
+        } else {
+          detail.innerHTML = ''
+          const pre = document.createElement('pre')
+          pre.textContent = result
+          detail.appendChild(pre)
+        }
+      } finally {
+        detail.classList.remove('waiting')
+      }
+    }
+  }
+
+  addEventListener('hashchange', hashChangeListener)
+
   async function dropHandler (ev) {
     console.log('File(s) dropped', [...ev.dataTransfer.items].map(i => ({
       type: i.type,
@@ -549,12 +600,10 @@
           const entry = item.webkitGetAsEntry()
           console.log(`… file[${i}].fullPath = ${entry.fullPath}`)
           console.log(`… file[${i}].isDirectory = ${entry.isDirectory}`)
+
+          const collectedFiles = []
           if (entry.isDirectory) {
-            window.location.hash = ''
-            const ul = document.createElement('ul')
-            explore.innerHTML = ''
             const collectedDirs = []
-            const collectedFiles = []
             const toVisit = [entry]
             while (toVisit.length) {
               const dir = toVisit.pop()
@@ -565,57 +614,31 @@
               toVisit.push(...subDirs)
             }
             collectedFiles.sort((a, b) => (a.fullPath.localeCompare(b.fullPath)))
-
-            const hash = window.location.hash
-            addEventListener('hashchange', async (_event) => {
-              console.log('hashchange', URL.parse(_event.oldURL).hash, '->', URL.parse(_event.newURL).hash)
-              const currentActive = document.querySelector('li.active')
-              if (currentActive) {
-                currentActive.classList.remove('active')
-              }
-              const element = document.querySelector(`li a[href="${window.location.hash}"]`)
-              if (element) {
-                detail.classList.add('waiting')
-                detail.innerHTML = ''
-                element.parentElement.classList.add('active')
-                try {
-
-                  const result = await parseFile(window.location.hash)
-                  if (result instanceof HTMLElement) {
-                    detail.innerHTML = ''
-                    detail.appendChild(result)
-                    if (result.afterInsert) {
-                      result.afterInsert()
-                    }
-                  } else {
-                    detail.innerHTML = ''
-                    const pre = document.createElement('pre')
-                    pre.textContent = result
-                    detail.appendChild(pre)
-                  }
-                } finally {
-                  detail.classList.remove('waiting')
-                }
-              }
-            })
-            FILES = {}
-            for (const entry of collectedFiles) {
-              const link = '#' + entry.fullPath
-              const li = document.createElement('li')
-              if (link === hash) {
-                li.classList.add('active')
-              }
-              const a = document.createElement('a')
-              a.textContent = entry.fullPath
-              a.href = link
-              li.id = entry.fullPath
-              li.appendChild(a)
-              ul.appendChild(li)
+          }
+          if (entry.isFile) {
+            collectedFiles.push(entry)
+          }
+          window.location.hash = ''
+          explore.innerHTML = ''
+          const hash = window.location.hash
+          FILES = {}
+          const ul = document.createElement('ul')
+          for (const entry of collectedFiles) {
+            const link = '#' + entry.fullPath
+            const li = document.createElement('li')
+            if (link === hash) {
+              li.classList.add('active')
             }
-            explore.appendChild(ul)
-            for (const fileEntry of collectedFiles) {
-              FILES['#' + fileEntry.fullPath] = {name: fileEntry.fullPath, fileEntry}
-            }
+            const a = document.createElement('a')
+            a.textContent = entry.fullPath
+            a.href = link
+            li.id = entry.fullPath
+            li.appendChild(a)
+            ul.appendChild(li)
+          }
+          explore.appendChild(ul)
+          for (const fileEntry of collectedFiles) {
+            FILES['#' + fileEntry.fullPath] = {name: fileEntry.fullPath, fileEntry}
           }
         }
       }
