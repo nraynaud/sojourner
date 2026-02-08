@@ -83,6 +83,7 @@ I really want to thank him a lot, because I asked for a lot of data points, and 
 - Diameter of edge starting the cone: 76 mm (there is a radius there, I measured to the edge of the flat spot or the beginning of that radius)
 - The vent hole is 180 degrees opposite from the clamp
 - Vent hole diameter: 1.6 mm
+- (The vent hole) is 48 mm out from the imaginary wheel center, or 7 mm in from the inner radius of the lip rim.
 - ID rim lip: 110 mm
 - Thickness rim lip: 1mm
 - Distance between rim lip and rim face: interpretive, as there are multiple radii under the lip, and the lip ends up overhanging the cone.
