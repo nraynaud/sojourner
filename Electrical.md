@@ -1,4 +1,5 @@
 # Notes on the electrical design of the Sojourner rover
+
 Christopher Bovee, January 2026
 
 As a spaceflight nerd and robiticist I am fascinated with the electronics and control systems of the Sojourner Rover.
@@ -8,6 +9,8 @@ This document is meant to outline the electrical components & software, and how 
 
 The pathfinder mission was designed under heavy budget constraints relative to previous missions, which pushed engineers to develop new ways of doing things.
 Moreso than previous missions, a large amount of the hardware is made from what was available "commercial off the shelf", with as little modification as possible.
+
+
 
 
 ## Main computer:
@@ -267,21 +270,41 @@ there was an LCD-based 3D glasses solution for SGI called CrystalEyes from Stere
 
 ## Power Systems:
 
-Great care was taken to be frugal with the electrical power available. Solar power peaked at about 13 Watts at high noon with no dust on the panels. 
+
+"For the landed operations, a solar panel and primary batteries supplied Rover power. The Rover solar panel surface area of approximately 2200cm^2 was composed of 13 diode-Isolated strings of 18 GaAs/Ge cells, 5.5 mil thick, 2x4 cm per cell, with 3-mil cover glasses. Peak power was 15.3 W maximum at noontime at approximately 15.5 V. 
+
+The remaining part of the power subsystem consisted of three strings of lithium-thionyl chloride primary (non- rechargeable) battery cells and various DC/DC converters, switching regulators, and inverters to provide necessary voltage levels. The lithium battery pack was designed to provide approximately 150W-hrs of energyat 50% depth of discharge- The batteries were entirely consumed during the missio
+
+Great care was taken to be frugal with the electrical power available. The batteries were not rechargable, and only meant to supplement the system when solar alone was inadequate, and to run the heater inside if temperatures got too low, particularly at night. The batteries were depleted during the mission, but it continued to operate under solar power.
+
+
+### Some low power considerations:
+
+	Interior electrical heaters were aided by 3 radioisotope heater units (RHU) which each supplied 1 watt of thermal power (apparently 40-gram canisters of a plutonium-238 pellet)
+	
+	Image capture, computing tasks, radio transmissions, driving, etc are performed at different times to keep power draw as low as possible and prevent needing the batteries.
+	
+	The rover went into sleep mode at night to conserve battery.
+	
+The solar panel fed the "regulated electronics bus", which powered the CPU, radio, motor drivers, sensors, etc. Inside were two resistive heaters, on the battery and radio modem.
+
 
 
 <img width="1072" height="444" alt="4-Table1-1" src="https://github.com/user-attachments/assets/ea777c38-625c-4093-93c5-4d376e2278eb" />
 
 
-info gleamed from https://web.archive.org/web/20160118204241/http://mars.jpl.nasa.gov/MPF/roverpwr/power.html
+info gleamed from (https://web.archive.org/web/20160118204241/http://mars.jpl.nasa.gov/MPF/roverpwr/power.html):
 
-Solar Array Technical Information
-Solar Cells		
+
+
+
+Solar Array Technical Information:
+	
 	Type			Gallium Arsenide on Germanium (GaAs/Ge)		
 	Size			2 x 4 cm, 5.5 mil thick		
 	Coverglass		3 mil, CMG		
 	Efficiency		>18% efficiency
-Solar Array		
+
 	Configuration		  13 parallel strings, 18 series cells per string		
 	Power              16.5 watts on Mars at noon								
 				         45 watts  1 sun/AMO (Earth)		
@@ -290,32 +313,40 @@ Solar Array
 	Weight             0.340 kg		
 	Size               0.22 m2		
 	Survival Temp		-140 to +110 C
-Solar Array Contractor      Applied Solar Energy Corporation (ASEC)								
-                            City of Industry, CA
- 
-Battery Technical Information
-Cells		
+	
+Solar Array Contractor: Applied Solar Energy Corporation (ASEC), City of Industry, CA
+
+
+Battery Technical Information:
+	
 	Chemistry		Lithium-Thionyl Chloride (Li-SOCl2)		
 	Size			D-Size		
 	Weight			118 grams
 	Capacity		+25C		12 amp-hrs						
                  -20C		8 amp-hrs
-Batteries		
-	Number             3		
-	Cells Per Battery	  3 cells in series		
+		
+	# of batteries:    3		
+	Cells per battery:	  3 cells in series		
 	Size               40 mm dia, 186 mm length		
 	Weight             1.24 kg		
-	Operating Voltage	  8 - 11 volts
-Cell Contractor        SAFT America							
-                       Cockeysville, MD
+	Operating voltage	  8 - 11 volts
+Cell Contractor: SAFT America, Cockeysville, MD
+
  
-Power Electronics Technical Information
-Distribution Architecture	Single string w/graceful degradation
-User Voltages		
+Power Electronics Technical Information:
+Distribution Architecture : "Single string w/graceful degradation" (meaning PV panels are isolated in the case of failure by diodes or switching electronics)
+
+User Voltages:
+
 	Main bus		8 to 18 volts		
 	Secondary		+/-12v, 9v, +/-7.5v, 5v, +/-5v, 3.3v
-Power Electronics Suppliers	Pico Electronics, Power Trends,								
-				Nation Semiconductor, Motorola,	Semtech
+	
+Power Electronics Suppliers: Pico Electronics, Power Trends, Nation Semiconductor, Motorola, Semtech	
+
+				
+
+
+
 
 
 
@@ -324,14 +355,26 @@ Enabling the CPU jumps power from 0.2A to 0.5A. CPU time is cited as costing 3.7
 <img width="952" height="840" alt="image" src="https://github.com/user-attachments/assets/ea5f975e-691f-4b8e-bda4-ebf07b4f08ee" />
 
 
-## Temperature sensor locations:
+
+
+## Thermal control systems:
+
+To keep the electronics comfortably above the ambient temperatures of Mars, all temperature sensitive electronics are located within the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all walls, and which contains 2 electrical heaters and temperature sensors so that the rover may regulate itself. Also, Radioisotope heaters were employed to relieve the electrical heaters.
+
+[Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/):
+"While the microwave-oven-sized Sojourner and the golf-cart-sized Spirit and Opportunity rovers were mainly solar-powered, they also had a nuclear power source, that defended them against the frigid Martian cold. Sojourner and Spirit and Opportunity, they all had RHUs, Radioisotope Heater Units. And what they are is a little piece of plutonium to keep them warm in the cold expanse of Mars, like a little hand warmer. These plutonium hand warmers were each smaller than a pencil eraser, but they were big power savers for those missions. Rather than use up energy running many heaters, the rover’s precious electrical power could be used for other activities instead, like driving around and taking pictures to send back to Earth."
+
+Platinum Resistor Thermometer (PRT)
 
 <img width="744" height="344" alt="5-Table2-1" src="https://github.com/user-attachments/assets/8d3fd2ed-77bf-4c46-b708-4254e8859663" />
 
 
 
 
-### Drivetrain electromechanicals:
+## Motion control systems:
+
+All 6 rover wheels are powered by Maxon RE163 or (RE016) Brushed DC motors which operate at 6 volts. A simple motor-mounted encoder is able to count the motor rotations in order to measure the distance driven.
+"Vehicle motion contorl is accomplished through the on/off switching of drive or steering motors. An average of motor encoder (or potentiometer) readings is used to know when to turn off the motors.
 
 Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
 
@@ -341,5 +384,6 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 ## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
 
 
