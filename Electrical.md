@@ -47,10 +47,10 @@ Though Pentium processors were available, the 8085 was chosen for reliability in
 Specs of the computer system included:
 
     100,000 instructions per second @ 2 MHz clock speed,
-    64 Kb memory address range split into 4 16 Kb banks of RAM,
+    64 Kb memory address range split into 4 16 Kb banks of system RAM,
     11 banks of ROM, 
-    36 banks of RAM,
-    I/O to about 70 sensor channels and services
+    36 banks of extended RAM,
+    I/O to about 90 sensor channels and services
     8-bit word size
     2's complement arithmetic and no floating point instructions
     single-level interrupt system
@@ -384,6 +384,7 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 ## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
 
 
 
