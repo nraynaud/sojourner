@@ -132,6 +132,9 @@ The vertical displacement of the lines indicates the relative height of the surf
 <img width="1226" height="154" alt="7-Table4-1" src="https://github.com/user-attachments/assets/08608ddc-6f9e-40c9-98d0-bf1cf02862aa" />
 
 
+## Sensor suite
+
+<img width="857" height="955" alt="image" src="https://github.com/user-attachments/assets/1e770c14-037b-4ebd-92da-c8859e52fe84" />
 
 
 ## Radio Systems:
@@ -384,6 +387,7 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 ## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
 
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
+
 
 
 
