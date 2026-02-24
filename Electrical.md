@@ -241,44 +241,14 @@ The sensor output was squared up by a comparator whose output went to the counte
 
 
 
-
-## Rover Control Workstation (RCW)
-
-[old jpl website mentioning the RCW]https://web.archive.org/web/20160118204358/http://mars.jpl.nasa.gov/MPF/roverctrlnav/rcw.html
-
-The RCW is the computer system used on earth to assess the rover's status, position, and to generate and send commands the operate the rover. It was based on an SGI Onyx 2 computer.
-
-one document mentions "The ground operators' interface software as being Silicon Graphics Inventor®-based" [Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
-Inventor is a 3D graphics library from the time, used to write 3D applications for SGI hardware. [read more about SGI inventor here](https://web.cs.wpi.edu/~matt/courses/cs563/talks/inventor.html)
-
-![rcw](https://github.com/user-attachments/assets/bcf0c033-b9b9-425b-aec4-973588ef344b)
-
-"The uplink engineers spent several hours laboriously building and documenting the command sequences, using the Rover Control Workstation (an SGI Onyx 2). A typical sequence contained 200-300 commands, detailing everything from thermal control parameters, to health status check rates, to actual instrument operation and traverse instructions. The traverse commands, in particular, necessitated an intensive building process: the designated ``rover driver'' donned LCD shuttered goggles in order to scrutinise a 3D display of actual Martian terrain derived from stereo data from theIMP cameras.
-
-The rover as well as the lander had pairs of cameras capable of taking stereographic 3D images.
-
-there was an LCD-based 3D glasses solution for SGI called CrystalEyes from StereoGraphics.
-
-<img width="1600" height="1066" alt="image" src="https://github.com/user-attachments/assets/c3f2ef42-53cf-481e-83fb-014d6a5f5284" />
-
-
-
-
-
-
-
-
-
-
-
 ## Power Systems:
 
 
-"For the landed operations, a solar panel and primary batteries supplied Rover power. The Rover solar panel surface area of approximately 2200cm^2 was composed of 13 diode-Isolated strings of 18 GaAs/Ge cells, 5.5 mil thick, 2x4 cm per cell, with 3-mil cover glasses. Peak power was 15.3 W maximum at noontime at approximately 15.5 V. 
+"A solar panel and primary batteries supplied Rover power. The Rover solar panel surface area of approximately 2200cm^2 was composed of 13 diode-Isolated strings of 18 GaAs/Ge cells, 5.5 mil thick, 2x4 cm per cell, with 3-mil cover glasses. Peak power was 15.3 W maximum at noontime at approximately 15.5 V. 
 
-The remaining part of the power subsystem consisted of three strings of lithium-thionyl chloride primary (non- rechargeable) battery cells and various DC/DC converters, switching regulators, and inverters to provide necessary voltage levels. The lithium battery pack was designed to provide approximately 150W-hrs of energyat 50% depth of discharge- The batteries were entirely consumed during the missio
+The remaining part of the power subsystem consisted of three strings of lithium-thionyl chloride primary (non- rechargeable) battery cells and various DC/DC converters, switching regulators, and inverters to provide necessary voltage levels. The lithium battery pack was designed to provide approximately 150W-hrs of energy at 50% depth of discharge- The batteries were entirely consumed during the mission."
 
-Great care was taken to be frugal with the electrical power available. The batteries were not rechargable, and only meant to supplement the system when solar alone was inadequate, and to run the heater inside if temperatures got too low, particularly at night. The batteries were depleted during the mission, but it continued to operate under solar power.
+Great care was taken to be frugal with the electrical power available. The batteries were not rechargable, and only meant to supplement the system when solar alone was inadequate, and to run the heater inside if temperatures got too low, particularly at night.
 
 
 ### Some low power considerations:
@@ -289,7 +259,7 @@ Great care was taken to be frugal with the electrical power available. The batte
 	
 	The rover went into sleep mode at night to conserve battery.
 	
-The solar panel fed the "regulated electronics bus", which powered the CPU, radio, motor drivers, sensors, etc. Inside were two resistive heaters, on the battery and radio modem.
+The solar panel fed the "regulated electronics bus", which powered the CPU, radio, motor drivers, sensors, etc. Inside were two resistive heaters, on the battery and the radio modem.
 
 
 
@@ -333,27 +303,22 @@ Battery Technical Information:
 	Size               40 mm dia, 186 mm length		
 	Weight             1.24 kg		
 	Operating voltage	  8 - 11 volts
+	
 Cell Contractor: SAFT America, Cockeysville, MD
 
  
 Power Electronics Technical Information:
-Distribution Architecture : "Single string w/graceful degradation" (meaning PV panels are isolated in the case of failure by diodes or switching electronics)
-
-User Voltages:
+Distribution Architecture : "Single string w/graceful degradation" (meaning PV panels are diode isolated in the case of failure)
 
 	Main bus		8 to 18 volts		
 	Secondary		+/-12v, 9v, +/-7.5v, 5v, +/-5v, 3.3v
 	
 Power Electronics Suppliers: Pico Electronics, Power Trends, Nation Semiconductor, Motorola, Semtech	
 
-				
 
 
 
-
-
-
-Enabling the CPU jumps power from 0.2A to 0.5A. CPU time is cited as costing 3.7 watts on average. 
+Enabling the CPU takes power consumption from 0.2A to 0.5A. CPU time is cited as costing 3.7 watts on average. 
 
 <img width="952" height="840" alt="image" src="https://github.com/user-attachments/assets/ea5f975e-691f-4b8e-bda4-ebf07b4f08ee" />
 
@@ -362,9 +327,9 @@ Enabling the CPU jumps power from 0.2A to 0.5A. CPU time is cited as costing 3.7
 
 ## Thermal control systems:
 
-To keep the electronics comfortably above the ambient temperatures of Mars, all temperature sensitive electronics are located within the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all walls, and which contains 2 electrical heaters and temperature sensors so that the rover may regulate itself. Also, Radioisotope heaters were employed to relieve the electrical heaters.
+As Don Bickler stated when discussing the design of the rover, "the thermal world is a big one". There are complications with external wiring between multiple seperate heated and insulated chambers for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides, and which contains 2 electrical heaters and temperature sensors so that the rover may regulate itself. Also, Radioisotope heaters (RHUs) were employed to relieve the electrical heaters.
 
-[Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/):
+[Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/)
 "While the microwave-oven-sized Sojourner and the golf-cart-sized Spirit and Opportunity rovers were mainly solar-powered, they also had a nuclear power source, that defended them against the frigid Martian cold. Sojourner and Spirit and Opportunity, they all had RHUs, Radioisotope Heater Units. And what they are is a little piece of plutonium to keep them warm in the cold expanse of Mars, like a little hand warmer. These plutonium hand warmers were each smaller than a pencil eraser, but they were big power savers for those missions. Rather than use up energy running many heaters, the rover’s precious electrical power could be used for other activities instead, like driving around and taking pictures to send back to Earth."
 
 Platinum Resistor Thermometer (PRT)
@@ -377,18 +342,46 @@ Platinum Resistor Thermometer (PRT)
 ## Motion control systems:
 
 All 6 rover wheels are powered by Maxon RE163 or (RE016) Brushed DC motors which operate at 6 volts. A simple motor-mounted encoder is able to count the motor rotations in order to measure the distance driven.
-"Vehicle motion contorl is accomplished through the on/off switching of drive or steering motors. An average of motor encoder (or potentiometer) readings is used to know when to turn off the motors.
+"Vehicle motion control is accomplished through the on/off switching of drive or steering motors. An average of motor encoder (or potentiometer) readings is used for odemetry.
 
 Motors: Maxon RE163 (sometimes "RE016") with single output shaft. [This document details what modifications were required for the motors to survive the low pressure environment.](https://www.esmats.eu/amspapers/pastpapers/pdfs/2012/phillips.pdf)
 
 Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element material](https://www.ttelectronics.com/products/passive-components/potentiometers/6173) 4 of these are used for steering position feedback.
 
-
-## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
-
 [here is an interesting vintage site covering some development aspects and technical points.](http://www.iki.rssi.ru/mpfmirror/rovercom/rovintro.html)
 
 
 
+## Rover Control Workstation (RCW)
 
+[old jpl website mentioning the RCW]https://web.archive.org/web/20160118204358/http://mars.jpl.nasa.gov/MPF/roverctrlnav/rcw.html
+
+The RCW is the computer system used on earth to assess the rover's status, position, and to generate and send commands the operate the rover. It was based on an SGI Onyx 2 computer.
+
+one document mentions "The ground operators' interface software as being Silicon Graphics Inventor®-based" [Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
+Inventor is a 3D graphics library from the time, used to write 3D applications for SGI hardware. [read more about SGI inventor here](https://web.cs.wpi.edu/~matt/courses/cs563/talks/inventor.html)
+
+![rcw](https://github.com/user-attachments/assets/bcf0c033-b9b9-425b-aec4-973588ef344b)
+
+The rover as well as the lander had stereo pairs of cameras capable of taking stereographic 3D images.
+
+"The uplink engineers spent several hours laboriously building and documenting the command sequences, using the Rover Control Workstation (an SGI Onyx 2). A typical sequence contained 200-300 commands, detailing everything from thermal control parameters, to health status check rates, to actual instrument operation and traverse instructions. The traverse commands, in particular, necessitated an intensive building process: the designated ``rover driver'' donned LCD shuttered goggles in order to scrutinise a 3D display of actual Martian terrain derived from stereo data from the IMP cameras."
+
+Stereo imagery from the IMP was projected to it's real distance and location in the virtual environment using photogrammetry techniques. Then, operators could look from different points of view, plan around the terrain, and determine waypoint positions.
+
+<img width="407" height="287" alt="image" src="https://github.com/user-attachments/assets/b26b18fa-13e2-4533-a9c4-e806f113ecb7" />
+
+
+
+there was an LCD-based 3D glasses solution for SGI called CrystalEyes from StereoGraphics, which was utilized to view the environment in 3D.
+
+<img width="1600" height="1066" alt="image" src="https://github.com/user-attachments/assets/c3f2ef42-53cf-481e-83fb-014d6a5f5284" />
+
+Brian K. Cooper using the CrystalEyes
+<img width="728" height="578" alt="image" src="https://github.com/user-attachments/assets/26692717-3db5-4e86-8d9e-3554e3a0dc8c" />
+
+
+
+
+## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
 
