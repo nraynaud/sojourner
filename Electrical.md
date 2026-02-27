@@ -253,7 +253,7 @@ Great care was taken to be frugal with the electrical power available. The batte
 
 ### Some low power considerations:
 
-	Interior electrical heaters were aided by 3 radioisotope heater units (RHU) which each supplied 1 watt of thermal power (apparently 40-gram canisters of a plutonium-238 pellet)
+	Interior electrical heaters were aided by 3 )
 	
 	Image capture, computing tasks, radio transmissions, driving, etc are performed at different times to keep power draw as low as possible and prevent needing the batteries.
 	
@@ -327,12 +327,15 @@ Enabling the CPU takes power consumption from 0.2A to 0.5A. CPU time is cited as
 
 ## Thermal control systems:
 
-As Don Bickler stated when discussing the design of the rover, "the thermal world is a big one". There are complications with external wiring between multiple seperate heated and insulated chambers for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides, and which contains 2 electrical heaters and temperature sensors so that the rover may regulate itself. Also, Radioisotope heaters (RHUs) were employed to relieve the electrical heaters.
+As Don Bickler stated when discussing the design of the rover, "The thermal world is a big one". There are complications with external wiring between multiple insulated sections for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides. The WEB contains 2 electrical heaters and thermostats so that the rover may regulate itself. It apparently contained 4 thermostats based on one drawing (WEB 1993-02)
+
+Additionally, 3 Radioisotope heaters (RHUs) were employed to relieve the electrical heaters by each continuously supplying 1 watt of thermal power, each a 40-gram canister of a plutonium-238 pellet.
 
 [Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/)
+
 "While the microwave-oven-sized Sojourner and the golf-cart-sized Spirit and Opportunity rovers were mainly solar-powered, they also had a nuclear power source, that defended them against the frigid Martian cold. Sojourner and Spirit and Opportunity, they all had RHUs, Radioisotope Heater Units. And what they are is a little piece of plutonium to keep them warm in the cold expanse of Mars, like a little hand warmer. These plutonium hand warmers were each smaller than a pencil eraser, but they were big power savers for those missions. Rather than use up energy running many heaters, the rover’s precious electrical power could be used for other activities instead, like driving around and taking pictures to send back to Earth."
 
-Platinum Resistor Thermometer (PRT)
+In addition to simple low-temperature thermostats, the computer monitored the temperatures of critical areas via many analog temperature sensors. 
 
 <img width="744" height="344" alt="5-Table2-1" src="https://github.com/user-attachments/assets/8d3fd2ed-77bf-4c46-b708-4254e8859663" />
 
@@ -352,22 +355,48 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 
 
 
+
+## Inertial Measurement Sensors
+
+Sojourner is fitted with a vertical-axis rate gyro and 3 single-axis accelerometers. 
+
+The rate gyro is a 'Quartz Rate Sensor' part number QRS11. It is a solid-state sensor developed by BEI Technologies (now part of Schneider Electric). 
+It uses a micromachined vibrating quartz tuning fork and the Coriolis effect.
+
+[QRS11 Datasheet](https://d1io3yog0oux5.cloudfront.net/_858e8c31e3bd4e429880b218547fee08/emcore/db/784/8448/datasheet/964001_T1_QRS11.pdf)
+
+"The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface. 
+[Coriolis theory of operation:](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
+
+The QRS was also cost-reduced for automotive applications and called the "GyroChip II".
+
+<img width="1114" height="818" alt="image" src="https://github.com/user-attachments/assets/60c0d71c-3d2b-40d9-a240-5712843e6989" />
+
+The three accelerometers were also solid state piezo-based devices. still searching for a model number. by the drawings they are seemingly cylindrical or square units, about 27mmx36mm in profile.
+
+
 ## Rover Control Workstation (RCW)
 
 [old jpl website mentioning the RCW]https://web.archive.org/web/20160118204358/http://mars.jpl.nasa.gov/MPF/roverctrlnav/rcw.html
 
 The RCW is the computer system used on earth to assess the rover's status, position, and to generate and send commands the operate the rover. It was based on an SGI Onyx 2 computer.
 
-one document mentions "The ground operators' interface software as being Silicon Graphics Inventor®-based" [Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
-Inventor is a 3D graphics library from the time, used to write 3D applications for SGI hardware. [read more about SGI inventor here](https://web.cs.wpi.edu/~matt/courses/cs563/talks/inventor.html)
+one document mentions "The ground operators' interface software as being Silicon Graphics Inventor®-based"
+[Mars Rovers: July 4, 1997, and Beyond by Sharon Laubach](https://dl.acm.org/doi/pdf/10.1145/332084.332086#k%u01603%E9%3Dn5Y%u2022Q%CAs%5C%07%13%26%u0131MPF_homepage)
+Inventor is a 3D graphics library from the time, used to write 3D applications for SGI hardware. 
+[read more about SGI inventor here](https://web.cs.wpi.edu/~matt/courses/cs563/talks/inventor.html)
+
+
 
 ![rcw](https://github.com/user-attachments/assets/bcf0c033-b9b9-425b-aec4-973588ef344b)
+
 
 The rover as well as the lander had stereo pairs of cameras capable of taking stereographic 3D images.
 
 "The uplink engineers spent several hours laboriously building and documenting the command sequences, using the Rover Control Workstation (an SGI Onyx 2). A typical sequence contained 200-300 commands, detailing everything from thermal control parameters, to health status check rates, to actual instrument operation and traverse instructions. The traverse commands, in particular, necessitated an intensive building process: the designated ``rover driver'' donned LCD shuttered goggles in order to scrutinise a 3D display of actual Martian terrain derived from stereo data from the IMP cameras."
 
 Stereo imagery from the IMP was projected to it's real distance and location in the virtual environment using photogrammetry techniques. Then, operators could look from different points of view, plan around the terrain, and determine waypoint positions.
+
 
 <img width="407" height="287" alt="image" src="https://github.com/user-attachments/assets/b26b18fa-13e2-4533-a9c4-e806f113ecb7" />
 
@@ -377,11 +406,22 @@ there was an LCD-based 3D glasses solution for SGI called CrystalEyes from Stere
 
 <img width="1600" height="1066" alt="image" src="https://github.com/user-attachments/assets/c3f2ef42-53cf-481e-83fb-014d6a5f5284" />
 
-Brian K. Cooper using the CrystalEyes
+
+
+Brian K. Cooper using the CrystalEyes:
+
 <img width="728" height="578" alt="image" src="https://github.com/user-attachments/assets/26692717-3db5-4e86-8d9e-3554e3a0dc8c" />
 
 
 
 
-## This file is a work in progress. To be discussed is the power management and lifetime, thermal management and the WEB, Motor controller hardware, Intertial measurement sensors, connectors and wires, and other experiments' electrical considerations
+## This file is a work in progress. 
+
+To be discussed further is power management, 
+thermal control scheme and the WEB, 
+Motor controller hardware, 
+complete IMU section (identify accelerometer type)
+connectors, wires, 
+and other experiments' electrical considerations,
+and citing the archive docs properly
 
