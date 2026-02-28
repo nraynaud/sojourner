@@ -358,21 +358,39 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 
 ## Inertial Measurement Sensors
 
-Sojourner is fitted with a vertical-axis rate gyro and 3 single-axis accelerometers. 
+Sojourner is fitted with one rate gyro in the vertical axis and three single-axis accelerometers, all mounted inside the WEB.
 
-The rate gyro is a 'Quartz Rate Sensor' part number QRS11. It is a solid-state sensor developed by BEI Technologies (now part of Schneider Electric). 
+By integrating the angular rate during driving, the rover can estimate it's heading without a compass or other absolute reference. With heading plus the absolute gravity direction measured by the 3 accelerometers, the rover can track it's current pose in order to avoid hazards and also as pose telemetry to aid in aligning and positioning images using the Rover Control Workstation (RCW).
+
+
+
+The accelerometers were LSMP-2 from Lucas Schaevitz,
+
+The angular rate gyro is a Systron Donner QRS11. The 'Quartz Rate Sensor' is a MEMS gyro developed by BEI Technologies (now part of Schneider Electric). 
 It uses a micromachined vibrating quartz tuning fork and the Coriolis effect.
 
 [QRS11 Datasheet](https://d1io3yog0oux5.cloudfront.net/_858e8c31e3bd4e429880b218547fee08/emcore/db/784/8448/datasheet/964001_T1_QRS11.pdf)
 
-"The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface. 
+"The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface.":
+
 [Coriolis theory of operation:](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
 
 The QRS was also cost-reduced for automotive applications and called the "GyroChip II".
 
 <img width="1114" height="818" alt="image" src="https://github.com/user-attachments/assets/60c0d71c-3d2b-40d9-a240-5712843e6989" />
 
-The three accelerometers were also solid state piezo-based devices. still searching for a model number. by the drawings they are seemingly cylindrical or square units, about 27mmx36mm in profile.
+
+
+Prototype rover "Rocky 7" was developed after sojourner. It had an identical gyro and triple accelerometer setup to Sojourner, as spelled out in this document about Rocky 7 development:
+[Rocky 7: A Next Generation Mars Rover Prototype](https://www.classes.cs.uchicago.edu/archive/1999/spring/CS251/Assignments/rocky7-marsrover.pdf)
+
+<img width="1065" height="1298" alt="image" src="https://github.com/user-attachments/assets/a88ca624-b6ea-4783-8e4e-1cd60b63e3a3" />
+
+
+
+
+
+
 
 
 ## Rover Control Workstation (RCW)
@@ -424,4 +442,5 @@ complete IMU section (identify accelerometer type)
 connectors, wires, 
 and other experiments' electrical considerations,
 and citing the archive docs properly
+
 
