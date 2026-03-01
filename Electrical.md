@@ -327,18 +327,22 @@ Enabling the CPU takes power consumption from 0.2A to 0.5A. CPU time is cited as
 
 ## Thermal control systems:
 
-As Don Bickler stated when discussing the design of the rover, "The thermal world is a big one". There are complications with external wiring between multiple insulated sections for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides. The WEB contains 2 electrical heaters and thermostats so that the rover may regulate itself. It apparently contained 4 thermostats based on one drawing (WEB 1993-02)
+As Don Bickler stated when discussing the design of the rover, "The thermal world is a big one". There are complications with external wiring between multiple insulated sections for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides. The WEB contains multiple resistive electrical heaters, mounted to the batteries and UHF modem, with thermostats so that the rover may regulate itself. It apparently contained 4 thermostats based on one drawing (WEB 1993-02)
 
 Additionally, 3 Radioisotope heaters (RHUs) were employed to relieve the electrical heaters by each continuously supplying 1 watt of thermal power, each a 40-gram canister of a plutonium-238 pellet.
+It is said that these RHUs are mounted inside a "Jeff-tube". (jeffries tube reference? some kind of heat spreader tube?)
+<img width="961" height="592" alt="image" src="https://github.com/user-attachments/assets/9f104aae-22f3-41d7-9034-0e5fe336df38" />
+
 
 [Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/)
 
 "While the microwave-oven-sized Sojourner and the golf-cart-sized Spirit and Opportunity rovers were mainly solar-powered, they also had a nuclear power source, that defended them against the frigid Martian cold. Sojourner and Spirit and Opportunity, they all had RHUs, Radioisotope Heater Units. And what they are is a little piece of plutonium to keep them warm in the cold expanse of Mars, like a little hand warmer. These plutonium hand warmers were each smaller than a pencil eraser, but they were big power savers for those missions. Rather than use up energy running many heaters, the rover’s precious electrical power could be used for other activities instead, like driving around and taking pictures to send back to Earth."
 
-In addition to simple low-temperature thermostats, the computer monitored the temperatures of critical areas via many analog temperature sensors. 
+In addition to simple low-temperature thermostats, the computer monitored the temperatures of critical areas via many analog Platinum resistor type thermometers. 
 
 <img width="744" height="344" alt="5-Table2-1" src="https://github.com/user-attachments/assets/8d3fd2ed-77bf-4c46-b708-4254e8859663" />
 
+<img width="943" height="457" alt="image" src="https://github.com/user-attachments/assets/45c028d1-1e07-496f-a842-51ccaeb87d59" />
 
 
 
@@ -442,6 +446,7 @@ complete IMU section (identify accelerometer type)
 connectors, wires, 
 and other experiments' electrical considerations,
 and citing the archive docs properly
+
 
 
 
