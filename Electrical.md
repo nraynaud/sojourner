@@ -13,7 +13,7 @@ Moreso than previous missions, a large amount of the hardware is made from what 
 
 
 
-## Main computer:
+## Main electronics boards:
 
 From Wikipedia:
 "The 'brain' of the MFEX Microrover (Sojourner) is comprised of two electronics boards interconnected to one another, the sensors within the WEB (Warm Electronics Box), 
@@ -25,6 +25,9 @@ analog and digital I/O control and processing, computing, and data storage."
 
 <img width="943" height="750" alt="image" src="https://github.com/user-attachments/assets/1fd5512a-f4e7-4874-b908-c42b796ea836" />
 
+<img width="360" height="284" alt="image" src="https://github.com/user-attachments/assets/f88c937d-63a0-4a3f-9537-1ed6eed0e8c7" />
+
+can't find a higher resolution version of JPL-26575AC, underside of the boards.
 
 
 
@@ -58,7 +61,7 @@ Specs of the computer system included:
 
 
 
-### Memory:
+### Memory specifics:
 
 The computer could access much more than 64Kb of memory using bank switching.
 
@@ -133,6 +136,9 @@ The vertical displacement of the lines indicates the relative height of the surf
 
 
 ## Sensor suite
+
+In addition to temperature sensors, angle sensors, bumpers, and experiments, the rover has three cameras used for navigation and to aquire imagery for scientific purposes.
+
 
 <img width="857" height="955" alt="image" src="https://github.com/user-attachments/assets/1e770c14-037b-4ebd-92da-c8859e52fe84" />
 
@@ -253,14 +259,13 @@ Great care was taken to be frugal with the electrical power available. The batte
 
 ### Some low power considerations:
 
-	Interior electrical heaters were aided by 3 )
+	Interior electrical heaters were aided by 3 RHUs (Radioisotope Heater Units) providing 3 watts of heat power contantly.
 	
-	Image capture, computing tasks, radio transmissions, driving, etc are performed at different times to keep power draw as low as possible and prevent needing the batteries.
+	Image capture, computing tasks, radio transmissions, driving, etc are performed at different times to keep maximum power draw as low as possible and prevent needing the batteries.
 	
-	The rover went into sleep mode at night to conserve battery.
+	The rover went into sleep mode at night to conserve battery. 
 	
 The solar panel fed the "regulated electronics bus", which powered the CPU, radio, motor drivers, sensors, etc. Inside were two resistive heaters, on the battery and the radio modem.
-
 
 
 <img width="1072" height="444" alt="4-Table1-1" src="https://github.com/user-attachments/assets/ea777c38-625c-4093-93c5-4d376e2278eb" />
@@ -296,7 +301,7 @@ Battery Technical Information:
 	Size			D-Size		
 	Weight			118 grams
 	Capacity		+25C		12 amp-hrs						
-                 -20C		8 amp-hrs
+                    -20C		8 amp-hrs
 		
 	# of batteries:    3		
 	Cells per battery:	  3 cells in series		
@@ -305,6 +310,12 @@ Battery Technical Information:
 	Operating voltage	  8 - 11 volts
 	
 Cell Contractor: SAFT America, Cockeysville, MD
+
+
+battery assembly:
+
+<img width="798" height="507" alt="image" src="https://github.com/user-attachments/assets/3df77e38-03d2-462a-90e9-36fbcb6f1d79" />
+
 
  
 Power Electronics Technical Information:
@@ -446,6 +457,7 @@ complete IMU section (identify accelerometer type)
 connectors, wires, 
 and other experiments' electrical considerations,
 and citing the archive docs properly
+
 
 
 
