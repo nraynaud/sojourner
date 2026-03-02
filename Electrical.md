@@ -5,13 +5,8 @@ Christopher Bovee, January 2026
 As a spaceflight nerd and robiticist I am fascinated with the electronics and control systems of the Sojourner Rover.
 This document is meant to outline the electrical components & software, and how they functioned together to operate the rover. 
 
-
-
 The pathfinder mission was designed under heavy budget constraints relative to previous missions, which pushed engineers to develop new ways of doing things.
 Moreso than previous missions, a large amount of the hardware is made from what was available "commercial off the shelf", with as little modification as possible.
-
-
-
 
 ## Main electronics boards:
 
@@ -23,52 +18,46 @@ Although the boards are generally referred to as the "CPU" Board and the "Power"
 they each contain components which are responsible for power generation, power conditioning, power distribution and control, 
 analog and digital I/O control and processing, computing, and data storage."
 
+
 <img width="943" height="750" alt="image" src="https://github.com/user-attachments/assets/1fd5512a-f4e7-4874-b908-c42b796ea836" />
+
+(so far unable to find a higher resolution version of JPL-26575AC, the underside of the boards)
 
 <img width="360" height="284" alt="image" src="https://github.com/user-attachments/assets/f88c937d-63a0-4a3f-9537-1ed6eed0e8c7" />
 
-can't find a higher resolution version of JPL-26575AC, underside of the boards.
 
 
+<br>
+<br>
 
+### Computer:
 
-### Processor:
-
-The CPU is a flight-qualified CMOS Intel 8085 running at 100 KIPS. [Here is a JPL summary](https://www-robotics.jpl.nasa.gov/what-we-do/flight-projects/pathfinder/software-electronics/)
+The CPU is a flight-qualified CMOS Intel 8085 running at 100 KIPS / 2Mhz. [Here is a JPL summary](https://www-robotics.jpl.nasa.gov/what-we-do/flight-projects/pathfinder/software-electronics/)
 
 The 8085 microprocessor was released in March 1976. It is an improved form of 8080 CPU, which was released in April 1974. The differences include simplified power and clock requirements. By 1994, the 8085 was a mature, reliable, well-understood and space-proven processor. "The radiation hardened version of the 8085 has been in on-board instrument data processors for several NASA and ESA space physics missions in the 1990s and early 2000s, including CRRES, Polar, FAST, Cluster, HESSI, the Sojourner Mars Rover, and THEMIS." 
 [Intel 8085 @ Wikipedia](https://en.wikipedia.org/wiki/Intel_8085)
 
-
 Though Pentium processors were available, the 8085 was chosen for reliability in the harsh environment and for it's relatively low power consumption. The Intel 80C85 itself, at the 2 MHz speed used on Sojourner, draws ~50 mW (0.05 watts) while running and only 10% of that in it's sleep or halt state. The other components, RAM, ROM, the clock, etc drew much more power. one document cites "CPU operation" as being 3.7W on average, including everything. 
 
+Specs of the computer system include:
 
+- 0.1 MIPS @ 2Mhz
+- 64 KB memory address range split into 4 16 Kb banks of system RAM
+- 11 banks of ROM
+- 36 banks of extended RAM
+- I/O to about 90 sensor channels and services
+- 8-bit word size
+- 2's complement arithmetic and no floating point instructions
+- single-level interrupt system
+- registers separate from memory addresses
+- The computer could access much more than 64Kb of memory using bank switching.
 
+### Memory:
 
-
-
-Specs of the computer system included:
-
-    100,000 instructions per second @ 2 MHz clock speed,
-    64 Kb memory address range split into 4 16 Kb banks of system RAM,
-    11 banks of ROM, 
-    36 banks of extended RAM,
-    I/O to about 90 sensor channels and services
-    8-bit word size
-    2's complement arithmetic and no floating point instructions
-    single-level interrupt system
-    registers separate from memory addresses
-
-
-
-### Memory specifics:
-
-The computer could access much more than 64Kb of memory using bank switching.
-
-	64 KB Main RAM (IBM): Used as the working memory for the processor to execute the flight software.
-	16 KB PROM (Harris): Contained the permanent, radiation-hardened bootloader and basic hardware initialization code.
-	176 KB EEPROM (Seeq Tech): Housed the full suite of flight software, which included the cyclic executive, navigation behaviors, and communication protocols.
-	512 KB Temporary RAM (Micron): Dedicated primarily to data storage, such as buffering camera images and telemetry data before transmission.
+- 64 KB Main RAM (IBM): Used as the working memory for the processor to execute the flight software.
+- 16 KB PROM (Harris): Contained the permanent, radiation-hardened bootloader and basic hardware initialization code.
+- 176 KB EEPROM (Seeq Tech): full suite of flight software, including cyclic executive, navigation, and communication protocols.
+- 512 KB Temporary RAM (Micron): Dedicated primarily to data storage, such as buffering camera images and telemetry data before transmission.
 
 <img width="1116" height="258" alt="7-Table3-1" src="https://github.com/user-attachments/assets/c3a80915-8929-4436-81ee-16f2582854be" />
 
@@ -78,17 +67,14 @@ The computer could access much more than 64Kb of memory using bank switching.
 
 Some unverified but likely component types from various sources:
 
-	Somewhere on this board is apparently Intel 8255, 8251, and 8253 chips. 
-	It has at least one 8-bit ADC that is multiplexed somehow, and op amps. 
+- Somewhere on this board is apparently Intel 8255, 8251, and 8253 chips. 
+- It has at least one 8-bit ADC that is multiplexed somehow, and op amps. 
 
-	Apparently it also uses 54 and 74 series chips for bus activities:
-	(5400 are military grade but fully compatible versions of the common 7400 series TTL logic chips)
+- Apparently it also uses 54 and 74 series chips for bus activities:
+  (5400 are military grade but fully compatible versions of the common 7400 series TTL logic chips)
 
-	54LS138 address decoder, 54LS373 Bus latch, 54LS244/245 Bus buffer,	54LS00/08 NAND/AND gates,
-	
-	LM117, LM105, LM723, Voltage regulators plus other DC to DC converters.
-
-
+- 54LS138 address decoder, 54LS373 Bus latch, 54LS244/245 Bus buffer,	54LS00/08 NAND/AND gates,
+- LM117, LM105, LM723, Voltage regulators plus other DC to DC converters.
 
 I will begin identifying the component groupings on the boards as I am able to. 
 
@@ -132,6 +118,7 @@ The weak light of the lasers was detected during the martian daytime by using th
 The vertical displacement of the lines indicates the relative height of the surface or object in front of the rover.
 
 [MFEX performance document](https://www.semanticscholar.org/paper/Sojourner%3A-The-Mars-Pathfinder-Microrover-Flight-Matijevic/809eac1b3631634371ea68eef4b8778ad4235ae9)
+
 <img width="1226" height="154" alt="7-Table4-1" src="https://github.com/user-attachments/assets/08608ddc-6f9e-40c9-98d0-bf1cf02862aa" />
 
 
@@ -139,8 +126,60 @@ The vertical displacement of the lines indicates the relative height of the surf
 
 In addition to temperature sensors, angle sensors, bumpers, and experiments, the rover has three cameras used for navigation and to aquire imagery for scientific purposes.
 
-
 <img width="857" height="955" alt="image" src="https://github.com/user-attachments/assets/1e770c14-037b-4ebd-92da-c8859e52fe84" />
+
+### Camera / Laser subassembly:
+
+<img width="359" height="168" alt="image" src="https://github.com/user-attachments/assets/c0fa0176-d27c-431e-bcd8-3e6c13cb17d7" />
+<img width="360" height="245" alt="image" src="https://github.com/user-attachments/assets/bbce1e40-0536-430a-b0e6-7acf2cf23272" />
+
+
+### Bumper strips:
+
+There is also a wide physical bumper on each side of the rover, connected by flat springs and off-the-shelf contact switches [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
+
+These contact switches trigger an 'interrupt' on the 8085 processor, since it is running a single threaded program and wants to react immediately when a bumper is pressed, rather than the next time it gets around to polling that input.
+
+
+### Inertial Measurement Sensors:
+
+Sojourner is fitted with one rate gyro in the vertical axis and three single-axis accelerometers, all mounted inside the WEB.
+
+By integrating the angular rate during driving, the rover can estimate it's heading without a compass or other absolute reference. With heading plus the absolute gravity direction measured by the 3 accelerometers, the rover can track it's current pose in order to avoid hazards and also as pose telemetry to aid in aligning and positioning images using the Rover Control Workstation (RCW).
+
+
+
+The accelerometers were LSMP-2 from Lucas Schaevitz:
+
+<img width="582" height="389" alt="image" src="https://github.com/user-attachments/assets/687abc35-7b26-4bba-a8e9-2857155a1aca" />
+
+
+The angular rate gyro is a Systron Donner QRS11. The 'Quartz Rate Sensor' is a MEMS gyro developed by BEI Technologies (now part of Schneider Electric). 
+It uses a micromachined vibrating quartz tuning fork and the Coriolis effect.
+
+<img width="1003" height="712" alt="image" src="https://github.com/user-attachments/assets/8fd6af00-8faa-4685-80cf-23b57584b299" />
+
+
+[QRS11 Datasheet](https://d1io3yog0oux5.cloudfront.net/_858e8c31e3bd4e429880b218547fee08/emcore/db/784/8448/datasheet/964001_T1_QRS11.pdf)
+
+"The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface.":
+
+[Coriolis theory of operation:](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
+
+The QRS was also cost-reduced for automotive applications and called the "GyroChip II".
+
+<img width="1114" height="818" alt="image" src="https://github.com/user-attachments/assets/60c0d71c-3d2b-40d9-a240-5712843e6989" />
+
+
+
+Prototype rover "Rocky 7" was developed after sojourner. It had an identical gyro and triple accelerometer setup to Sojourner, as spelled out in this document about Rocky 7 development:
+[Rocky 7: A Next Generation Mars Rover Prototype](https://www.classes.cs.uchicago.edu/archive/1999/spring/CS251/Assignments/rocky7-marsrover.pdf)
+
+<img width="1065" height="1298" alt="image" src="https://github.com/user-attachments/assets/a88ca624-b6ea-4783-8e4e-1cd60b63e3a3" />
+
+
+
+
 
 
 ## Radio Systems:
@@ -206,44 +245,6 @@ Free Space Match: 1.09:1 VSWR at center frequency
 The height of the rover antenna when it is deployed is about 83 cm.
 
 -these specs according to this site [How the MARS microrover radios and antennas work](http://www.iki.rssi.ru/mpfmirror/rovercom/itworks.html)
-
-
-
-
-
-
-## Bumper strips:
-
-There is also a wide physical bumper on each side of the rover, connected by flat springs and off-the-shelf contact switches [Honeywell MH](https://www.mouser.fr/c/electromechanical/switches/basic-snap-action-switches/?m=Honeywell&series=HM)
-
-These contact switches trigger an 'interrupt' on the 8085 processor, since it is running a single threaded program and wants to react immediately when a bumper is pressed, rather than the next time it gets around to polling that input.
-
-
-
-## Materials Adherence Experiment (MAE)
-
-The MAE is installed in the front left corner cutout of Sojourner's solar panel. Marie Curie lacks this experiment.
-
-"The purpose of this instrument was to make a measurement by which degradation of the array output due to dust coverage could be reliably separated from degradation due to other causes or changes in output due to variations in the solar intensity at the surface.
-The MAE has two instruments: a quartz crystal microbalance, and a shorted GaAs solar cell fitted with a removable cover glass. (It also includes a temperature sensor and an open-circuit solar cell used to monitor the solar-array maximum-power point.)
-The MAE solar cell experiment uses the GaAs solar cell with a removable cover glass to measure optical obscuration caused by settling dust. 
-During the course of the mission, the cover glass on the shorted cell is occasionally rotated away from its normal position in front of the solar cell, and the short circuit current (Isc) is measured. 
-Comparing Isc with and without the cover glass in place measures the optical obscuration of the glass surface by dust on the cover, plus the reflectance of thecover glass itself. 
-The known reflectance of the coverglass is then subtracted out, to give the amount of obscuration due to dust." [Dust on Mars](https://github.com/user-attachments/files/25053947/dustonmars.pdf)
-
-
-
-![MAE_Integration_Model](https://github.com/user-attachments/assets/299c6a7d-684c-4d94-a917-36554367f42e) 
-
-This blurb about the function of the MAE quartz microbalance comes from an EE who designed the board which evaluates the MAE:
-
-"The sensor outputted a sine wave (-ish), the frequency of which was the difference frequency between two crystals in an oscillator/mixer circuit. 
-One crystal was shielded from the dusty atmosphere, the other, coated with vacuum grease (as glue) was exposed. Dust falling onto the exposed crystal became fixed and effectively changed its mass. 
-Thus, the difference frequency was proportional to the mass difference between the two crystals and a direct function of accumulated dust mass. 
-The sensor output was squared up by a comparator whose output went to the counter input of the micro. So we directly measured frequency. This board was within the WEB.
-
-<img width="1504" height="2016" alt="image" src="https://github.com/user-attachments/assets/15965645-6938-4bef-8d79-0e00e6b98eaf" />
-
 
 
 
@@ -370,39 +371,29 @@ Potentiometers: [BI precision 61735 utilizing a "conductive plastic" element mat
 
 
 
+## Materials Adherence Experiment (MAE)
 
-## Inertial Measurement Sensors
+The MAE is installed in the front left corner cutout of Sojourner's solar panel. Marie Curie lacks this experiment.
 
-Sojourner is fitted with one rate gyro in the vertical axis and three single-axis accelerometers, all mounted inside the WEB.
-
-By integrating the angular rate during driving, the rover can estimate it's heading without a compass or other absolute reference. With heading plus the absolute gravity direction measured by the 3 accelerometers, the rover can track it's current pose in order to avoid hazards and also as pose telemetry to aid in aligning and positioning images using the Rover Control Workstation (RCW).
-
-
-
-The accelerometers were LSMP-2 from Lucas Schaevitz,
-
-The angular rate gyro is a Systron Donner QRS11. The 'Quartz Rate Sensor' is a MEMS gyro developed by BEI Technologies (now part of Schneider Electric). 
-It uses a micromachined vibrating quartz tuning fork and the Coriolis effect.
-
-[QRS11 Datasheet](https://d1io3yog0oux5.cloudfront.net/_858e8c31e3bd4e429880b218547fee08/emcore/db/784/8448/datasheet/964001_T1_QRS11.pdf)
-
-"The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface.":
-
-[Coriolis theory of operation:](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
-
-The QRS was also cost-reduced for automotive applications and called the "GyroChip II".
-
-<img width="1114" height="818" alt="image" src="https://github.com/user-attachments/assets/60c0d71c-3d2b-40d9-a240-5712843e6989" />
+"The purpose of this instrument was to make a measurement by which degradation of the array output due to dust coverage could be reliably separated from degradation due to other causes or changes in output due to variations in the solar intensity at the surface.
+The MAE has two instruments: a quartz crystal microbalance, and a shorted GaAs solar cell fitted with a removable cover glass. (It also includes a temperature sensor and an open-circuit solar cell used to monitor the solar-array maximum-power point.)
+The MAE solar cell experiment uses the GaAs solar cell with a removable cover glass to measure optical obscuration caused by settling dust. 
+During the course of the mission, the cover glass on the shorted cell is occasionally rotated away from its normal position in front of the solar cell, and the short circuit current (Isc) is measured. 
+Comparing Isc with and without the cover glass in place measures the optical obscuration of the glass surface by dust on the cover, plus the reflectance of thecover glass itself. 
+The known reflectance of the coverglass is then subtracted out, to give the amount of obscuration due to dust." [Dust on Mars](https://github.com/user-attachments/files/25053947/dustonmars.pdf)
 
 
 
-Prototype rover "Rocky 7" was developed after sojourner. It had an identical gyro and triple accelerometer setup to Sojourner, as spelled out in this document about Rocky 7 development:
-[Rocky 7: A Next Generation Mars Rover Prototype](https://www.classes.cs.uchicago.edu/archive/1999/spring/CS251/Assignments/rocky7-marsrover.pdf)
+![MAE_Integration_Model](https://github.com/user-attachments/assets/299c6a7d-684c-4d94-a917-36554367f42e) 
 
-<img width="1065" height="1298" alt="image" src="https://github.com/user-attachments/assets/a88ca624-b6ea-4783-8e4e-1cd60b63e3a3" />
+This blurb about the function of the MAE quartz microbalance comes from an EE who designed the board which evaluates the MAE:
 
+"The sensor outputted a sine wave (-ish), the frequency of which was the difference frequency between two crystals in an oscillator/mixer circuit. 
+One crystal was shielded from the dusty atmosphere, the other, coated with vacuum grease (as glue) was exposed. Dust falling onto the exposed crystal became fixed and effectively changed its mass. 
+Thus, the difference frequency was proportional to the mass difference between the two crystals and a direct function of accumulated dust mass. 
+The sensor output was squared up by a comparator whose output went to the counter input of the micro. So we directly measured frequency. This board was within the WEB.
 
-
+<img width="1504" height="2016" alt="image" src="https://github.com/user-attachments/assets/15965645-6938-4bef-8d79-0e00e6b98eaf" />
 
 
 
@@ -450,13 +441,13 @@ Brian K. Cooper using the CrystalEyes:
 
 ## This file is a work in progress. 
 
-To be discussed further is power management, 
-thermal control scheme and the WEB, 
-Motor controller hardware, 
-complete IMU section (identify accelerometer type)
+To be discussed further is the exact usage abilities of the panel vs the batteries,
+Motor controller electronics, 
 connectors, wires, 
-and other experiments' electrical considerations,
-and citing the archive docs properly
+WAE experiment photodetector design and usage,
+correcting citations to point to archive
+etc.
+
 
 
 
