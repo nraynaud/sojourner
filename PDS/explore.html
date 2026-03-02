@@ -107,6 +107,12 @@
 <h1>Cobbled together PDS Mars Pathfinder Explorer</h1>
 <div id="wholeApp">
     <div id="explore">
+        <div id="searchdiv">
+            <form id="searchform" role="search"><input type="search" id="search" name="q"
+                                                       placeholder="Search literature...">
+                <button>Search</button>
+            </form>
+        </div>
         drop a <a href="https://planetarydata.jpl.nasa.gov/img/data/mpf/">PDS folder</a> here.
     </div>
     <div id="detail">
@@ -318,6 +324,9 @@
     if ('SAMPLE_BIT_MASK' in imgObj) {
       const [base, mask] = imgObj['SAMPLE_BIT_MASK'].split('#')
       MAX_VALUE = parseInt(mask, parseInt(base))
+    }
+    if ('MAXIMUM' in imgObj) {
+      MAX_VALUE = parseInt(imgObj['MAXIMUM'])
     }
     const bands = parseInt(imgObj['BANDS'])
     const pixelSize = sampleBytes * bands
@@ -656,6 +665,64 @@
     // Prevent default behavior (Prevent file from being opened)
     ev.preventDefault()
   }
+</script>
+<script type="importmap">
+    {
+      "imports": {
+        "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@21.1.0/Arrow.dom.mjs",
+        "tslib": "https://cdn.jsdelivr.net/npm/tslib@2.8.1/tslib.es6.mjs",
+        "flatbuffers": "https://cdn.jsdelivr.net/npm/flatbuffers@25.9.23/mjs/flatbuffers.js",
+        "@duckdb/duckdb-wasm": "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev18.0/dist/duckdb-browser.mjs"
+      }
+    }
+</script>
+<script type="module">
+  import * as duckdb from '@duckdb/duckdb-wasm'
+
+  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+
+  // Select a bundle based on browser checks
+  const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
+  const worker_url = URL.createObjectURL(
+    new Blob([`importScripts("${bundle.mainWorker}");`], {type: 'text/javascript'})
+  )
+
+  // Instantiate the asynchronous version of DuckDB-wasm
+  const worker = new Worker(worker_url)
+  const logger = new duckdb.ConsoleLogger()
+  const db = new duckdb.AsyncDuckDB(logger, worker)
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
+  URL.revokeObjectURL(worker_url)
+
+  function relativeUrl(path){
+    return (new URL(path, document.location)).href
+  }
+  const c = await db.connect()
+  const bootstrapFile = await (await fetch(relativeUrl('bootstrap.sql'))).text()
+  console.log((await c.query(bootstrapFile)).toString())
+  async function queryAndDisplay(q) {
+    const res = await c.query(q)
+    console.log(res.toString())
+  }
+  //ATTACH 'database/database.duckdb' AS db (STORAGE_VERSION 'v1.4.0') ;
+  //USE db;
+  await queryAndDisplay(`ATTACH '${relativeUrl('db_creator/database.duckdb')}' AS database (READ_ONLY);`)
+  await queryAndDisplay(`USE database;`)
+  await queryAndDisplay(`SHOW DATABASES;`)
+  await queryAndDisplay(`SELECT * from duckdb_tables() ;`)
+  await queryAndDisplay(`SELECT * from duckdb_functions() where database_name <> 'system';`)
+  await queryAndDisplay(`SELECT * from duckdb_schemas() ;`)
+  await queryAndDisplay(`SELECT * from duckdb_databases() ;`)
+  await queryAndDisplay(`PRAGMA show_tables;`)
+  await queryAndDisplay(`PRAGMA database_list;`)
+  await queryAndDisplay(`PRAGMA database_size;`)
+  await queryAndDisplay(`SELECT path FROM db.files;`)
+  const searchQuery = await c.prepare(`SELECT * FROM custom_search_bm25(?);`)
+  const search = document.getElementById('searchform')
+  search.addEventListener('submit', (e) => {
+    e.preventDefault()
+    queryAndDisplay(``)
+  })
 </script>
 </body>
 </html>
