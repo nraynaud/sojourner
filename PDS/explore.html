@@ -706,7 +706,7 @@
   }
   //ATTACH 'database/database.duckdb' AS db (STORAGE_VERSION 'v1.4.0') ;
   //USE db;
-  await queryAndDisplay(`ATTACH '${relativeUrl('db_creator/database.duckdb')}' AS database (READ_ONLY);`)
+  await queryAndDisplay(`ATTACH '${relativeUrl('database/database.duckdb')}' AS database (READ_ONLY);`)
   await queryAndDisplay(`USE database;`)
   await queryAndDisplay(`SHOW DATABASES;`)
   await queryAndDisplay(`SELECT * from duckdb_tables() ;`)
