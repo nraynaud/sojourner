@@ -5,17 +5,17 @@ Christopher Bovee, January 2026
 As a spaceflight nerd and robiticist I am fascinated with the electronics and control systems of the Sojourner Rover.
 This document is meant to outline the electrical components & software, and how they functioned to operate the rover. 
 
-Pathfinder was a mission designed with a relatively low budget, which pushed engineers to develop new ways of doing things.
+Pathfinder was a mission accomplished on a relatively low budget, which pushed engineers to develop new ways of doing things.
 Moreso than previous missions, a large amount of the hardware is based on what was available "commercial off the shelf", with minimal modification.
 
 ## Main electronics boards:
 
-"The 'brain' of the MFEX Microrover (Sojourner) is comprised of 
+The 'brain' of the MFEX Microrover (Sojourner) is comprised of: 
 - two electronics boards interconnected to one another with flex cables, 
 - the sensors within the WEB (Warm Electronics Box),
 - sensors and actuators external to the WEB, connected via wire bundles and flex cables.
 
-Although the boards are generally referred to as the "CPU" Board and the "Power" Board, they each contain components which are responsible for power generation, power conditioning, power distribution and control, analog and digital I/O control and processing, computing, and data storage."
+Although these boards are generally referred to as the "CPU" Board and the "Power" Board, they each contain components which are responsible for power generation, power conditioning, power distribution and control, analog and digital I/O control and processing, computing, and data storage."
 
 
 <img width="943" height="750" alt="image" src="https://github.com/user-attachments/assets/1fd5512a-f4e7-4874-b908-c42b796ea836" />
@@ -24,7 +24,13 @@ Although the boards are generally referred to as the "CPU" Board and the "Power"
 
 <img width="360" height="284" alt="image" src="https://github.com/user-attachments/assets/f88c937d-63a0-4a3f-9537-1ed6eed0e8c7" />
 
-[Wikipedia HArdware and Software section](https://en.wikipedia.org/wiki/Sojourner_(rover)#Hardware_and_software)
+<img width="1245" height="843" alt="image" src="https://github.com/user-attachments/assets/cad04646-1ada-498c-8084-15c4ccd252cc" />
+
+
+[Wikipedia Hardware and Software section](https://en.wikipedia.org/wiki/Sojourner_(rover)#Hardware_and_software)
+
+
+
 
 
 <br>
@@ -355,9 +361,14 @@ Enabling the CPU takes power consumption from 0.2A to 0.5A. CPU time is cited as
 
 As Don Bickler stated when discussing the design of the rover, "The thermal world is a big one". There are complications with external wiring between multiple insulated sections for electronics to function. hence, all electronics except for exterior motors and sensors were mounted inside the WEB (Warm Electronics Box) which is well insulated by a thick layer of aerogel on all sides. The WEB contains multiple resistive electrical heaters, mounted to the batteries and UHF modem, with thermostats so that the rover may regulate itself. It apparently contained 4 thermostats based on one drawing (WEB 1993-02)
 
-Additionally, 3 Radioisotope heaters (RHUs) were employed to relieve the electrical heaters by each continuously supplying 1 watt of thermal power, each a 40-gram canister of a plutonium-238 pellet.
-It is said that these RHUs are mounted inside a "Jeff-tube". (jeffries tube reference? some kind of heat spreader tube?)
+Additionally, 3 "Lightwight Radioisotope Heater Units" (LWRHUs) were employed to relieve the electrical heaters by each continuously supplying ~1 watt of thermal power, each a 40-gram canister containing a small plutonium-238 pellet.
+These RHUs are mounted inside the central tube on which the rocker suspension pivots. This tube is referred to as a "Jeff-tube". Surrounding the Jeff tube is a metal clamp which attaches to the electronics framework. The batteries, the largest thermal mass, are surrounding the Jeff tube. If the thermal energy generated were not given a pathway out of the WEB, it would continue to heat up to levels that would damage internal components. While the rover is mounted to the lander, there is a thermal pathway out of the WEB via a braided copper cable which leads to a heat exchanger that is part of the lander's cooling loop.
+
 <img width="961" height="592" alt="image" src="https://github.com/user-attachments/assets/9f104aae-22f3-41d7-9034-0e5fe336df38" />
+
+<img width="850" height="739" alt="image" src="https://github.com/user-attachments/assets/c241faf2-eed4-4b2a-bbdf-69c12d9bd0b3" />
+
+
 
 
 [Interview with Sabah Bux:](https://www.nasa.gov/podcasts/on-a-mission/the-power-of-the-rovers-s4e10/)
@@ -461,6 +472,7 @@ connectors, wires,
 WAE experiment photodetector design and usage,
 correcting citations to point to archive
 etc.
+
 
 
 
