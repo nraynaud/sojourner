@@ -3,20 +3,19 @@
 Christopher Bovee, January 2026
 
 As a spaceflight nerd and robiticist I am fascinated with the electronics and control systems of the Sojourner Rover.
-This document is meant to outline the electrical components & software, and how they functioned together to operate the rover. 
+This document is meant to outline the electrical components & software, and how they functioned to operate the rover. 
 
-The pathfinder mission was designed under heavy budget constraints relative to previous missions, which pushed engineers to develop new ways of doing things.
-Moreso than previous missions, a large amount of the hardware is made from what was available "commercial off the shelf", with as little modification as possible.
+Pathfinder was a mission designed with a relatively low budget, which pushed engineers to develop new ways of doing things.
+Moreso than previous missions, a large amount of the hardware is based on what was available "commercial off the shelf", with minimal modification.
 
 ## Main electronics boards:
 
-From Wikipedia:
-"The 'brain' of the MFEX Microrover (Sojourner) is comprised of two electronics boards interconnected to one another, the sensors within the WEB (Warm Electronics Box), 
-and sensors and actuators external to the WEB via a set of three Flex cables. 
+"The 'brain' of the MFEX Microrover (Sojourner) is comprised of 
+- two electronics boards interconnected to one another with flex cables, 
+- the sensors within the WEB (Warm Electronics Box),
+- sensors and actuators external to the WEB, connected via wire bundles and flex cables.
 
-Although the boards are generally referred to as the "CPU" Board and the "Power" Board, 
-they each contain components which are responsible for power generation, power conditioning, power distribution and control, 
-analog and digital I/O control and processing, computing, and data storage."
+Although the boards are generally referred to as the "CPU" Board and the "Power" Board, they each contain components which are responsible for power generation, power conditioning, power distribution and control, analog and digital I/O control and processing, computing, and data storage."
 
 
 <img width="943" height="750" alt="image" src="https://github.com/user-attachments/assets/1fd5512a-f4e7-4874-b908-c42b796ea836" />
@@ -25,6 +24,7 @@ analog and digital I/O control and processing, computing, and data storage."
 
 <img width="360" height="284" alt="image" src="https://github.com/user-attachments/assets/f88c937d-63a0-4a3f-9537-1ed6eed0e8c7" />
 
+[Wikipedia HArdware and Software section](https://en.wikipedia.org/wiki/Sojourner_(rover)#Hardware_and_software)
 
 
 <br>
@@ -108,7 +108,6 @@ Instead the Sojourner rover 8085 code had a simple control loop that executed co
 
 ### Autonomous navigation and the Light-stripe system
 
-
 "The Sojourner rover features limited autonomous navigation ability, encapsulated primarily in the 'Go To Waypoint' command: ground operators specify a goal location, and the rover moves toward the goal without further instruction, avoiding obstacles and other hazards on its own. The rover captures stereo image data with its front-mounted stereo camera pair, which it also uses to perceive its environment via a laser-striping system. 
 
 This system senses obstacles ahead of the rover as follows: the five on-board lasers project stripes onto the ground, and selected lines in each camera are scanned to build up a 20-point range 'image' of the terrain immediately in front of the rover. 
@@ -116,6 +115,9 @@ This terrain model is then used on-board, during execution of the 'Go To Waypoin
 
 The weak light of the lasers was detected during the martian daytime by using the cameras to take two pictures rapidly: one with lasers turned on and one without. One image was subtracted from the other to get the difference, which is an image of only the laser lines.
 The vertical displacement of the lines indicates the relative height of the surface or object in front of the rover.
+
+![PIA04316](https://github.com/user-attachments/assets/3db68b7f-140f-46f0-8c8f-e2d9a37c68b8)
+
 
 [MFEX performance document](https://www.semanticscholar.org/paper/Sojourner%3A-The-Mars-Pathfinder-Microrover-Flight-Matijevic/809eac1b3631634371ea68eef4b8778ad4235ae9)
 
@@ -164,7 +166,7 @@ It uses a micromachined vibrating quartz tuning fork and the Coriolis effect.
 
 "The BEI GyroChip used in the Mars rover Sojourner was the first micromachined technology to operate on the Martian surface.":
 
-[Coriolis theory of operation:](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
+[Coriolis theory of operation](https://www.fiercesensors.com/components/a-micromachined-quartz-angular-rate-sensor-for-automotive-and-advanced-inertial)
 
 The QRS was also cost-reduced for automotive applications and called the "GyroChip II".
 
@@ -184,23 +186,35 @@ Prototype rover "Rocky 7" was developed after sojourner. It had an identical gyr
 
 ## Radio Systems:
 
-[Microrover telecom overview](http://www.iki.rssi.ru/mpfmirror/rovercom/radio.html) 
-[Microrover telecom subsystem 'lessons learned'](https://www.academia.edu/122637267/Mars_Microrover_Telecom_Subsystem)
+[Microrover telecom overview, old JPL site](http://www.iki.rssi.ru/mpfmirror/rovercom/radio.html) 
+[Microrover telecom subsystem 'lessons learned' academic paper](https://www.academia.edu/122637267/Mars_Microrover_Telecom_Subsystem)
 
-The components of the telecommunications system are:
+The complete telecom system is composed of:
 
-The Sojourner Rover UHF radio modem and antenna,
-The lander LMRE (Lander Mounted Rover Equipment) UHF Radio Modem and antenna,
-The lander's own - X‑band transmitter and receiver for direct‑to‑Earth communication.
+- The Sojourner Rover UHF radio modem and it's antenna,
 
+- The lander's LMRE (Lander Mounted Rover Equipment) UHF Radio Modem and antenna,
+
+- The lander's own - X‑band transmitter and receiver for direct‑to‑Earth communication.
 
 "Sojourner communicated with its base station using a 9,600 baud radio modem, although error-checking protocols limited communications to a functional data rate of 2,400 baud with a theoretical range of about half a kilometer. Under normal operation, it would periodically send a "heartbeat" message to the lander. If no response was given, the rover could autonomously travel back to the location at which the last heartbeat was received. If desired, this same strategy could be used to deliberately extend the rover's operational range beyond that of its radio transceiver, although the rover rarely traveled further than 10 meters from Pathfinder during its mission."
 
-
-"The Microrover radio is located inside the Rover WEB (Warm Electronics Box) where it is protected from the extreme cold. The radio is connected to the Microrover antenna using a short piece of coaxial cable that passes through the wall of the WEB. 
+"The Radio is located inside the Rover WEB (Warm Electronics Box) where it is protected from the extreme cold. It is connected to the Microrover antenna using a short piece of coaxial cable that passes through the wall of the WEB. 
 The radios that are used in the Microrover telecommunications system were purchased from Motorola's Paging Products Division. Several components that were designed and used in these radios were made by a company named DataRadio. These are off-the-shelf commercial radio modems (modulator+demodulator) that were modified to meet the communication needs of the Microrover mission. The antennas were designed and built by our Telecom team here at JPL."
 
+
+Our decision was to replace the plastic connectors with discrete wires, replace the commercial bracket of the radios with a more rugged stainless steel one, replaced the commercial outer metallic box with a wrap made out of layers of fiber glass tape and aluminum tape, and replace the commercial BNC RF connector with an SMA connector. 
+
+
 "The repackaging philosophy we selected to follow was, to keep the radios as close to their original forms as possible, replacing and adding only the necessary items. To be specific, we wanted to make sure that the electrical performance of the radios is not altered. But we did want to make certain that these radios will withstand thermal cycles, shock & vibration conditions. After much discussion, we came up with the following plan: replace all plastic connectors and switch with soldered-in wire jumpers; replace fuse with a jumper wire; pot or stake down all variable components; mount the radio boards on JPL built stainless steel frames; add heaters and temperature sensors; replace commercial grade RF connector with more reliable SMA connectors; wrap the assembly with fiber glass - Aluminum tape - fiber glass sandwich cover, replacing the heavier commercial metal casing, for weight reduction."
+
+
+
+
+
+
+
+
 
 
 Flight Rover Radio Modem:
@@ -260,11 +274,11 @@ Great care was taken to be frugal with the electrical power available. The batte
 
 ### Some low power considerations:
 
-	Interior electrical heaters were aided by 3 RHUs (Radioisotope Heater Units) providing 3 watts of heat power contantly.
+- Interior electrical heaters were aided by 3 RHUs (Radioisotope Heater Units) providing 3 watts of heat power contantly.
 	
-	Image capture, computing tasks, radio transmissions, driving, etc are performed at different times to keep maximum power draw as low as possible and prevent needing the batteries.
+- Image capture, computing tasks, radio transmissions, driving, etc are generally performed at different times to keep maximum power draw as low as possible and prevent needing the batteries.
 	
-	The rover went into sleep mode at night to conserve battery. 
+- The rover went into sleep mode at night to conserve battery. 
 	
 The solar panel fed the "regulated electronics bus", which powered the CPU, radio, motor drivers, sensors, etc. Inside were two resistive heaters, on the battery and the radio modem.
 
@@ -447,6 +461,7 @@ connectors, wires,
 WAE experiment photodetector design and usage,
 correcting citations to point to archive
 etc.
+
 
 
 
