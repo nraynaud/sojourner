@@ -725,10 +725,10 @@
   }
 
   console.log(relativeUrl('database/files.parquet'))
-  await queryAndDisplay(`SET VARIABLE dict_table_name = '${relativeUrl('database/dict.parquet')}';`)
-  await queryAndDisplay(`SET VARIABLE words_table_name = '${relativeUrl('database/words.parquet')}';`)
-  await queryAndDisplay(`SET VARIABLE files_table_name = '${relativeUrl('database/files.parquet')}';`)
-  await queryAndDisplay(`SET VARIABLE statistics_table_name = '${relativeUrl('database/statistics.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE dict_table_name = '"${relativeUrl('database/dict.parquet')}"';`)
+  await queryAndDisplay(`SET VARIABLE words_table_name = '"${relativeUrl('database/words.parquet')}"';`)
+  await queryAndDisplay(`SET VARIABLE files_table_name = '"${relativeUrl('database/files.parquet')}"';`)
+  await queryAndDisplay(`SET VARIABLE statistics_table_name = '"${relativeUrl('database/statistics.parquet')}"';`)
 
   const bootstrapFile = await (await fetch(relativeUrl('bootstrap.sql'))).text()
   console.log((await c.query(bootstrapFile)).toString())
