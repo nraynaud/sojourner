@@ -113,6 +113,17 @@
         #searchdiv {
             background-color: lightgoldenrodyellow;
         }
+        .searchResultPages {
+            padding-left: 20px;
+            margin-top: 10px;
+        }
+        .searchResultPages a {
+            font-size: larger;
+            font-weight: bold;
+        }
+        h4 {
+            margin-bottom: 3px;
+        }
     </style>
 </head>
 <body ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
@@ -752,10 +763,12 @@
     const resulHTML = []
     for (const file of result.toArray()) {
       const fileUrl = relativeUrl('..' + file.file)
-      resulHTML.push(`<p><a href="${fileUrl}#search=${encodeURI(searchText)}">${file.file}</a></p>`)
+      resulHTML.push(`<h4><a href="${fileUrl}#search=${encodeURI(searchText)}">${file.file}</a></h4>`)
+      resulHTML.push('<p class="searchResultPages"> found in pages: ')
       for (const page of file.pages) {
-        resulHTML.push(`<a href="${fileUrl}#${page.page}&search=${encodeURI(searchText)}">${page.page}</a>`)
+        resulHTML.push(`<a href="${fileUrl}#${page.page}&search=${encodeURI(searchText)}">${page.page.split('=')[1]}</a>`)
       }
+      resulHTML.push('</p>')
     }
     document.getElementById('searchresult').innerHTML = resulHTML.join('\n')
   })
