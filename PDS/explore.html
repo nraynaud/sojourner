@@ -101,12 +101,32 @@
         .thead {
             flex: 0 1;
         }
+        #closesearch {
+            text-align: right;
+        }
+        #closesearch:has(~ #searchresult:empty) {
+            display: none;
+        }
+
+        #searchdiv {
+            background-color: lightgoldenrodyellow;
+        }
     </style>
 </head>
 <body ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
 <h1>Cobbled together PDS Mars Pathfinder Explorer</h1>
 <div id="wholeApp">
     <div id="explore">
+        <div id="searchdiv">
+            <form id="searchform" role="search"><input type="search" id="search" name="q" required
+                                                       placeholder="Search literature...">
+                <button>Search</button>
+            </form>
+            <div id="closesearch">
+                <button onclick="document.getElementById('searchresult').innerHTML='';">Close Search</button>
+            </div>
+            <div id="searchresult"></div>
+        </div>
         drop a <a href="https://planetarydata.jpl.nasa.gov/img/data/mpf/">PDS folder</a> here.
     </div>
     <div id="detail">
@@ -235,10 +255,12 @@
         currentObject[value].push(newObj)
         objStack.push(currentObject)
         currentObject = newObj
-      } else {
+      }
+      else {
         if (key === 'END_OBJECT') {
           currentObject = objStack.pop()
-        } else {
+        }
+        else {
           currentObject[key] = value
         }
       }
@@ -318,6 +340,9 @@
     if ('SAMPLE_BIT_MASK' in imgObj) {
       const [base, mask] = imgObj['SAMPLE_BIT_MASK'].split('#')
       MAX_VALUE = parseInt(mask, parseInt(base))
+    }
+    if ('MAXIMUM' in imgObj) {
+      MAX_VALUE = parseInt(imgObj['MAXIMUM'])
     }
     const bands = parseInt(imgObj['BANDS'])
     const pixelSize = sampleBytes * bands
@@ -458,7 +483,8 @@
             console.log('reading ', c['NAME'])
             return reader(rowView, colStart)
           }
-        } else {
+        }
+        else {
           return _rowView => null
         }
       })
@@ -571,7 +597,8 @@
           if (result.afterInsert) {
             result.afterInsert()
           }
-        } else {
+        }
+        else {
           detail.innerHTML = ''
           const pre = document.createElement('pre')
           pre.textContent = result
@@ -642,7 +669,8 @@
           }
         }
       }
-    } else {
+    }
+    else {
       // Use DataTransfer interface to access the file(s)
       [...ev.dataTransfer.files].forEach((file, i) => {
         console.log(`… file[${i}].name = ${file.name}`)
@@ -656,6 +684,78 @@
     // Prevent default behavior (Prevent file from being opened)
     ev.preventDefault()
   }
+</script>
+<script type="importmap">
+    {
+      "imports": {
+        "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@21.1.0/Arrow.dom.mjs",
+        "tslib": "https://cdn.jsdelivr.net/npm/tslib@2.8.1/tslib.es6.mjs",
+        "flatbuffers": "https://cdn.jsdelivr.net/npm/flatbuffers@25.9.23/mjs/flatbuffers.js",
+        "@duckdb/duckdb-wasm": "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev18.0/dist/duckdb-browser.mjs"
+      }
+    }
+</script>
+<script type="module">
+  import * as duckdb from '@duckdb/duckdb-wasm'
+
+  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+
+  // Select a bundle based on browser checks
+  const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
+  const worker_url = URL.createObjectURL(
+    new Blob([`importScripts("${bundle.mainWorker}");`], {type: 'text/javascript'})
+  )
+
+  // Instantiate the asynchronous version of DuckDB-wasm
+  const worker = new Worker(worker_url)
+  const logger = new duckdb.ConsoleLogger()
+  const db = new duckdb.AsyncDuckDB(logger, worker)
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
+  URL.revokeObjectURL(worker_url)
+
+  function relativeUrl (path) {
+    return (new URL(path, document.location)).href
+  }
+
+  const c = await db.connect()
+
+  async function queryAndDisplay (q) {
+    const res = await c.query(q)
+    console.log(res.toString())
+  }
+
+  console.log(relativeUrl('database/files.parquet'))
+  await queryAndDisplay(`SET VARIABLE dict_table_name = '${relativeUrl('database/dict.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE words_table_name = '${relativeUrl('database/words.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE files_table_name = '${relativeUrl('database/files.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE statistics_table_name = '${relativeUrl('database/statistics.parquet')}';`)
+
+  const bootstrapFile = await (await fetch(relativeUrl('bootstrap.sql'))).text()
+  console.log((await c.query(bootstrapFile)).toString())
+
+  const searchQuery = await c.prepare(`
+      WITH all_results AS (FROM custom_search_bm25(?)),
+           page_results AS (SELECT score, split_part(path, '#', 1) AS file, split_part(path, '#', 2) AS page
+                            FROM all_results)
+      SELECT file, sum(score) as score, list({'page': page, 'score': score} ORDER BY score DESC) as pages
+      FROM page_results
+      GROUP BY file
+      ORDER BY score DESC;`)
+  const search = document.getElementById('searchform')
+  search.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const searchText = document.getElementById('search').value
+    let result = await searchQuery.query(searchText)
+    console.log(result.toString())
+    const resulHTML = []
+    for (const file of result.toArray()) {
+      resulHTML.push(`<p><a href="${file.file}#search=${encodeURI(searchText)}">${file.file}</a></p>`)
+      for (const page of file.pages) {
+        resulHTML.push(`<a href="${file.file}#${page.page}&search=${encodeURI(searchText)}">${page.page}</a>`)
+      }
+    }
+    document.getElementById('searchresult').innerHTML = resulHTML.join('\n')
+  })
 </script>
 </body>
 </html>
