@@ -101,6 +101,16 @@
         .thead {
             flex: 0 1;
         }
+        #closesearch {
+            text-align: right;
+        }
+        #closesearch:has(~ #searchresult:empty) {
+            display: none;
+        }
+
+        #searchdiv {
+            background-color: lightgoldenrodyellow;
+        }
     </style>
 </head>
 <body ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
@@ -108,10 +118,14 @@
 <div id="wholeApp">
     <div id="explore">
         <div id="searchdiv">
-            <form id="searchform" role="search"><input type="search" id="search" name="q"
+            <form id="searchform" role="search"><input type="search" id="search" name="q" required
                                                        placeholder="Search literature...">
                 <button>Search</button>
             </form>
+            <div id="closesearch">
+                <button onclick="document.getElementById('searchresult').innerHTML='';">Close Search</button>
+            </div>
+            <div id="searchresult"></div>
         </div>
         drop a <a href="https://planetarydata.jpl.nasa.gov/img/data/mpf/">PDS folder</a> here.
     </div>
@@ -241,10 +255,12 @@
         currentObject[value].push(newObj)
         objStack.push(currentObject)
         currentObject = newObj
-      } else {
+      }
+      else {
         if (key === 'END_OBJECT') {
           currentObject = objStack.pop()
-        } else {
+        }
+        else {
           currentObject[key] = value
         }
       }
@@ -467,7 +483,8 @@
             console.log('reading ', c['NAME'])
             return reader(rowView, colStart)
           }
-        } else {
+        }
+        else {
           return _rowView => null
         }
       })
@@ -580,7 +597,8 @@
           if (result.afterInsert) {
             result.afterInsert()
           }
-        } else {
+        }
+        else {
           detail.innerHTML = ''
           const pre = document.createElement('pre')
           pre.textContent = result
@@ -651,7 +669,8 @@
           }
         }
       }
-    } else {
+    }
+    else {
       // Use DataTransfer interface to access the file(s)
       [...ev.dataTransfer.files].forEach((file, i) => {
         console.log(`… file[${i}].name = ${file.name}`)
@@ -694,34 +713,48 @@
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
   URL.revokeObjectURL(worker_url)
 
-  function relativeUrl(path){
+  function relativeUrl (path) {
     return (new URL(path, document.location)).href
   }
+
   const c = await db.connect()
-  const bootstrapFile = await (await fetch(relativeUrl('bootstrap.sql'))).text()
-  console.log((await c.query(bootstrapFile)).toString())
-  async function queryAndDisplay(q) {
+
+  async function queryAndDisplay (q) {
     const res = await c.query(q)
     console.log(res.toString())
   }
-  //ATTACH 'database/database.duckdb' AS db (STORAGE_VERSION 'v1.4.0') ;
-  //USE db;
-  await queryAndDisplay(`ATTACH '${relativeUrl('database/database.duckdb')}' AS database (READ_ONLY);`)
-  await queryAndDisplay(`USE database;`)
-  await queryAndDisplay(`SHOW DATABASES;`)
-  await queryAndDisplay(`SELECT * from duckdb_tables() ;`)
-  await queryAndDisplay(`SELECT * from duckdb_functions() where database_name <> 'system';`)
-  await queryAndDisplay(`SELECT * from duckdb_schemas() ;`)
-  await queryAndDisplay(`SELECT * from duckdb_databases() ;`)
-  await queryAndDisplay(`PRAGMA show_tables;`)
-  await queryAndDisplay(`PRAGMA database_list;`)
-  await queryAndDisplay(`PRAGMA database_size;`)
-  await queryAndDisplay(`SELECT path FROM db.files;`)
-  const searchQuery = await c.prepare(`SELECT * FROM custom_search_bm25(?);`)
+
+  console.log(relativeUrl('database/files.parquet'))
+  await queryAndDisplay(`SET VARIABLE dict_table_name = '${relativeUrl('database/dict.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE words_table_name = '${relativeUrl('database/words.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE files_table_name = '${relativeUrl('database/files.parquet')}';`)
+  await queryAndDisplay(`SET VARIABLE statistics_table_name = '${relativeUrl('database/statistics.parquet')}';`)
+
+  const bootstrapFile = await (await fetch(relativeUrl('bootstrap.sql'))).text()
+  console.log((await c.query(bootstrapFile)).toString())
+
+  const searchQuery = await c.prepare(`
+      WITH all_results AS (FROM custom_search_bm25(?)),
+           page_results AS (SELECT score, split_part(path, '#', 1) AS file, split_part(path, '#', 2) AS page
+                            FROM all_results)
+      SELECT file, sum(score) as score, list({'page': page, 'score': score} ORDER BY score DESC) as pages
+      FROM page_results
+      GROUP BY file
+      ORDER BY score DESC;`)
   const search = document.getElementById('searchform')
-  search.addEventListener('submit', (e) => {
+  search.addEventListener('submit', async (e) => {
     e.preventDefault()
-    queryAndDisplay(``)
+    const searchText = document.getElementById('search').value
+    let result = await searchQuery.query(searchText)
+    console.log(result.toString())
+    const resulHTML = []
+    for (const file of result.toArray()) {
+      resulHTML.push(`<p><a href="${file.file}#search=${encodeURI(searchText)}">${file.file}</a></p>`)
+      for (const page of file.pages) {
+        resulHTML.push(`<a href="${file.file}#${page.page}&search=${encodeURI(searchText)}">${page.page}</a>`)
+      }
+    }
+    document.getElementById('searchresult').innerHTML = resulHTML.join('\n')
   })
 </script>
 </body>
