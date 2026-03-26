@@ -113,14 +113,17 @@
         #searchdiv {
             background-color: lightgoldenrodyellow;
         }
+
         .searchResultPages {
             padding-left: 20px;
             margin-top: 10px;
         }
+
         .searchResultPages a {
             font-size: larger;
             font-weight: bold;
         }
+
         h4 {
             margin-bottom: 3px;
         }
@@ -131,9 +134,12 @@
 <div id="wholeApp">
     <div id="explore">
         <div id="searchdiv">
-            <form id="searchform" role="search"><input type="search" id="search" name="q" required
-                                                       placeholder="Search literature...">
-                <button>Search</button>
+            <form id="searchform" role="search">
+                <fieldset id="searchfieldset" disabled title="Disabled while the DB loads">
+                    <input type="search" id="search" name="q" required
+                           placeholder="Search literature...">
+                    <button>Search</button>
+                </fieldset>
             </form>
             <div id="closesearch">
                 <button onclick="document.getElementById('searchresult').innerHTML='';">Close Search</button>
@@ -754,21 +760,40 @@
       FROM page_results
       GROUP BY file
       ORDER BY score DESC;`)
+
+  const rewrittenQuery = await c.prepare(`
+      with ids AS (FROM tokenize_search(?)),
+           dict AS (FROM query_table(getvariable('dict_table_name')))
+      SELECT list(word) as stems
+      FROM dict,
+           ids
+      WHERE ids.id == dict.id;
+  `)
+
+  const searchfieldset = document.getElementById('searchfieldset')
+  searchfieldset.title = "Search literature."
+  searchfieldset.disabled = false
   const search = document.getElementById('searchform')
   search.addEventListener('submit', async (e) => {
     e.preventDefault()
     const searchText = document.getElementById('search').value
     let result = await searchQuery.query(searchText)
-    console.log(result.toString())
+    let rewritten = (await rewrittenQuery.query(searchText)).at(0)
     const resulHTML = []
-    for (const file of result.toArray()) {
-      const fileUrl = relativeUrl('..' + file.file)
-      resulHTML.push(`<h4><a href="${fileUrl}#search=${encodeURI(searchText)}">${file.file}</a></h4>`)
-      resulHTML.push('<p class="searchResultPages"> found in pages: ')
-      for (const page of file.pages) {
-        resulHTML.push(`<a href="${fileUrl}#${page.page}&search=${encodeURI(searchText)}">${page.page.split('=')[1]}</a>`)
+    if (rewritten.stems) {
+      resulHTML.push(`Matched as: ${rewritten.stems.toArray().map(s => '"' + s + '"').join(', ')}`)
+      for (const file of result.toArray()) {
+        const fileUrl = relativeUrl('..' + file.file)
+        resulHTML.push(`<h4><a href="${fileUrl}#search=${encodeURI(searchText)}">${file.file}</a></h4>`)
+        resulHTML.push('<p class="searchResultPages"> found in pages: ')
+        for (const page of file.pages) {
+          resulHTML.push(`<a href="${fileUrl}#${page.page}&search=${encodeURI(searchText)}">${page.page.split('=')[1]}</a>`)
+        }
+        resulHTML.push('</p>')
       }
-      resulHTML.push('</p>')
+    }
+    else {
+      resulHTML.push('No result found.')
     }
     document.getElementById('searchresult').innerHTML = resulHTML.join('\n')
   })
