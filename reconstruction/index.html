@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SVG 2D Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="canny.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+
+        #toolbar {
+            background: #333;
+            color: white;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+            background: #555;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button.active {
+            background: #007bff;
+        }
+
+        #main-container {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        #left-panel {
+            width: 300px;
+            flex-shrink: 0;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .entity-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .entity-item.selected {
+            border-color: #007bff;
+            background: #e7f1ff;
+        }
+
+        .entity-item .name-label {
+            flex-grow: 1;
+            padding: 2px 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .entity-item .delete-btn {
+            display: none;
+            cursor: pointer;
+            color: #dc3545;
+            font-weight: bold;
+            padding: 0 5px;
+        }
+
+        .entity-item:hover .delete-btn {
+            display: block;
+        }
+
+        .entity-item .delete-btn:hover {
+            color: #a71d2a;
+        }
+
+        .entity-item input {
+            flex-grow: 1;
+            border: 1px solid #007bff;
+            background: white;
+            padding: 2px 5px;
+            display: none;
+            width: 100%;
+        }
+
+        .entity-item.editing .name-label {
+            display: none;
+        }
+
+        .entity-item.editing input {
+            display: block;
+        }
+
+        .entity-item input:focus {
+            outline: none;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #eee;
+            overflow: auto;
+        }
+
+        svg {
+            display: block;
+            touch-action: pinch-zoom;
+        }
+
+        #zoom-group {
+            transform-origin: 0 0;
+        }
+
+        svg.rect {
+            cursor: url('rect-cursor.svg') 12 12, crosshair;
+        }
+
+        svg.ellipse {
+            cursor: url('ellipse-cursor.svg') 12 12, crosshair;
+        }
+
+        svg.select {
+            cursor: default;
+        }
+
+        .shape {
+            fill: rgba(0, 123, 255, 0.3);
+            stroke: #007bff;
+            stroke-width: 2;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .shape.selected {
+            stroke: #ff0000;
+            stroke-width: 3;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .handle {
+            cursor: pointer;
+        }
+
+        .handle[data-dir="n"], .handle[data-dir="s"] {
+            cursor: ns-resize;
+        }
+
+        .handle[data-dir="e"], .handle[data-dir="w"] {
+            cursor: ew-resize;
+        }
+
+        .handle[data-dir="nw"], .handle[data-dir="se"] {
+            cursor: nwse-resize;
+        }
+
+        .handle[data-dir="ne"], .handle[data-dir="sw"] {
+            cursor: nesw-resize;
+        }
+
+        .rotate-handle {
+            cursor: grab;
+        }
+
+        .rotate-handle:active {
+            cursor: grabbing;
+        }
+
+        .rotate-handle:hover {
+            fill: #28a745;
+        }
+
+        #handles-group {
+            pointer-events: none;
+        }
+
+        #handles-group .handle, #handles-group .rotate-handle {
+            pointer-events: all;
+        }
+
+        #rotate-line {
+            vector-effect: non-scaling-stroke;
+        }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button id="rect-btn" onclick="setMode(DrawRectangleMode)">Rectangle</button>
+    <button id="ellipse-btn" onclick="setMode(DrawEllipseMode)">Ellipse</button>
+    <button id="select-btn" onclick="transitionToSelect()">Select</button>
+    <button id="zoom-in-btn" onclick="zoom(1.1)">Zoom +</button>
+    <button id="zoom-out-btn" onclick="zoom(0.9)">Zoom -</button>
+    <button id="zoom-reset-btn" onclick="zoom(0)">Reset Zoom</button>
+    <button id="bg-btn" onclick="$('bg-input').click()">Set Background</button>
+    <input type="file" id="bg-input" accept="image/*" style="display: none;" onchange="handleBgChange(event)">
+    <button id="save-btn" onclick="doc.saveToFile()">Save (Zip)</button>
+    <button id="load-btn" onclick="$('load-input').click()">Load (Zip)</button>
+    <input type="file" id="load-input" accept=".zip" style="display: none;" onchange="handleLoadFile(event)">
+    <button id="canny-btn" onclick="toggleCanny()">Canny</button>
+    <span id="status">Mode: Rectangle</span>
+</div>
+
+<div id="main-container">
+    <div id="left-panel">
+        <h3 style="margin-top: 0;">Entities</h3>
+        <div id="entity-list"></div>
+    </div>
+    <div id="canvas-container">
+        <svg id="svg-canvas" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <g id="handle-icon">
+                    <rect x="-5" y="-5" width="10" height="10" fill="white" stroke="#007bff" stroke-width="1"/>
+                </g>
+                <g id="rotate-handle-icon">
+                    <circle cx="0" cy="0" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
+                </g>
+            </defs>
+            <g id="zoom-group">
+                <g id="background-group"></g>
+                <g id="shapes-group"></g>
+            </g>
+            <g id="handles-group" style="visibility: hidden;">
+                <!-- Resize handles -->
+                <use class="handle" data-dir="nw" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="n" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="ne" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="e" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="se" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="s" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="sw" x="0" y="0" href="#handle-icon"/>
+                <use class="handle" data-dir="w" x="0" y="0" href="#handle-icon"/>
+                <!-- Rotate handle -->
+                <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
+                <line id="rotate-line" stroke="#28a745" stroke-width="1"/>
+            </g>
+        </svg>
+    </div>
+</div>
+<script>
+  // indexedDB
+  const dbName = 'SvgEditorDB', dbStoreName = 'state'
+  let dbInstance = null
+
+  const dbRequest = async req => new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+
+  const dbGetObjStore = async (mode = 'readonly') => (await openDb()).transaction(dbStoreName, mode).objectStore(dbStoreName)
+  const dbGet = async key => dbRequest((await dbGetObjStore()).get(key))
+  const dbSet = async (key, val) => dbRequest((await dbGetObjStore('readwrite')).put(val, key))
+
+  async function openDb () {
+    if (dbInstance) return dbInstance
+    const req = indexedDB.open(dbName, 1)
+    req.onupgradeneeded = (e) => e.target.result.createObjectStore(dbStoreName)
+    return dbInstance = await dbRequest(req)
+  }
+</script>
+<script>
+  // utils
+  const $ = id => document.getElementById(id)
+  const createNS = tag => document.createElementNS('http://www.w3.org/2000/svg', tag)
+  const setAttributes =
+    (element, attributes) => Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value))
+  const mapObject =
+    (obj, mapper) => Object.fromEntries(Object.entries(obj).map(([key, value]) => mapper(key, value)))
+  const invokeLater = work => setTimeout(work, 0)
+  const dispatchCustom = (target, evtName, det) => target.dispatchEvent(new CustomEvent(evtName, {detail: det}))
+
+  function getMousePos (evt, svg) {
+    const c = svg.getScreenCTM()
+    return {x: (evt.clientX - c.e) / c.a, y: (evt.clientY - c.f) / c.d}
+  }
+</script>
+<script>
+  class Shape {
+    constructor (el) {
+      this.el = el
+      this.id = el.id
+    }
+
+    get name () { return this.el.getAttribute('data-name') }
+
+    set name (val) { this.el.setAttribute('data-name', val) }
+
+    setAttributes (attrs) {
+      for (let k in attrs) this.el.setAttribute(k, attrs[k])
+    }
+
+    getCenter () {
+      const x = parseFloat(this.el.getAttribute('x')), y = parseFloat(this.el.getAttribute('y')),
+        w = parseFloat(this.el.getAttribute('width')), h = parseFloat(this.el.getAttribute('height'))
+      return {x: x + w / 2, y: y + h / 2}
+    }
+
+    getLocalBBox () { return this.getInitialRect() }
+
+    getRotation () {
+      const t = this.el.getAttribute('transform')
+      return t && t.match(/rotate\(([^, ]+)/) ? parseFloat(t.match(/rotate\(([^, ]+)/)[1]) : 0
+    }
+
+    setTransform (rot, cx, cy) { this.setAttributes({transform: `rotate(${rot}, ${cx}, ${cy})`}) }
+
+    getAttributes () { throw 'getAttributes must be implemented' }
+
+    getInitialRect () { throw 'getInitialRect must be implemented' }
+
+    updateResize (rect, lDx, lDy, dir) { throw 'updateResize must be implemented' }
+
+    toJSON () {
+      return {
+        type: this instanceof RectangleShape ? 'rect' : 'ellipse',
+        id: this.id, name: this.name, transform: this.el.getAttribute('transform'), attributes: this.getAttributes()
+      }
+    }
+  }
+
+  class RectangleShape extends Shape {
+    constructor (id, start, label) {
+      const el = createNS('rect')
+      Object.assign(el, {id})
+      setAttributes(el, {
+        x: start ? start.x : 0,
+        y: start ? start.y : 0,
+        width: 0,
+        height: 0,
+        'data-name': `Rectangle ${label}`,
+        class: 'shape'
+      })
+      super(el)
+    }
+
+    getAttributes () {
+      return {
+        x: this.el.getAttribute('x'),
+        y: this.el.getAttribute('y'),
+        width: this.el.getAttribute('width'),
+        height: this.el.getAttribute('height')
+      }
+    }
+
+    getInitialRect () {
+      return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+    }
+
+    updateResize (r, lDx, lDy, dir) {
+      let x = r.x, y = r.y, w = r.width, h = r.height
+      if (dir.includes('e')) w += lDx
+      if (dir.includes('s')) h += lDy
+      if (dir.includes('w')) {
+        x += lDx
+        w -= lDx
+      }
+      if (dir.includes('n')) {
+        y += lDy
+        h -= lDy
+      }
+      if (w < 0) {
+        x += w
+        w = Math.abs(w)
+      }
+      if (h < 0) {
+        y += h
+        h = Math.abs(h)
+      }
+      this.setAttributes({x, y, width: w, height: h})
+    }
+  }
+
+  class EllipseShape extends Shape {
+    constructor (id, start, count) {
+      const el = createNS('ellipse')
+      Object.assign(el, {id})
+      setAttributes(el, {
+        cx: start ? start.x : 0,
+        cy: start ? start.y : 0,
+        rx: 0,
+        ry: 0,
+        'data-name': `Ellipse ${count}`,
+        class: 'shape'
+      })
+      super(el)
+    }
+
+    getAttributes () {
+      return {
+        cx: this.el.getAttribute('cx'),
+        cy: this.el.getAttribute('cy'),
+        rx: this.el.getAttribute('rx'),
+        ry: this.el.getAttribute('ry')
+      }
+    }
+
+    getCenter () { return {x: parseFloat(this.el.getAttribute('cx')), y: parseFloat(this.el.getAttribute('cy'))} }
+
+    getLocalBBox () {
+      const r = this.getInitialRect()
+      return {x: r.cx - r.rx, y: r.cy - r.ry, width: 2 * r.rx, height: 2 * r.ry}
+    }
+
+    getInitialRect () {
+      return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+    }
+
+    updateResize (r, lDx, lDy, dir) {
+      let rx = r.rx, ry = r.ry, cx = r.cx, cy = r.cy
+      if (dir.includes('e')) {
+        rx += lDx / 2
+        cx += lDx / 2
+      }
+      if (dir.includes('w')) {
+        rx -= lDx / 2
+        cx += lDx / 2
+      }
+      if (dir.includes('s')) {
+        ry += lDy / 2
+        cy += lDy / 2
+      }
+      if (dir.includes('n')) {
+        ry -= lDy / 2
+        cy += lDy / 2
+      }
+      this.setAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
+    }
+  }
+
+  class Document extends EventTarget {
+    constructor () {
+      super()
+      Object.assign(this, {
+        entities: [],
+        entityCount: 0,
+        entityItemsMap: new Map(),
+        backgroundGroup: $('background-group'),
+        shapesGroup: $('shapes-group'),
+        entityList: $('entity-list'),
+        svg: $('svg-canvas')
+      })
+    }
+
+    setBackground (blob, name, skipSave = false) {
+      if (this.bgObjectURL) URL.revokeObjectURL(this.bgObjectURL)
+      if (this.cannyObjectURL) URL.revokeObjectURL(this.cannyObjectURL)
+      Object.assign(this, {backgroundImage: blob, backgroundName: name, cannyEnabled: false})
+      this.cannyObjectURL = null
+      this.backgroundGroup.innerHTML = ''
+      if (blob) {
+        this.bgObjectURL = URL.createObjectURL(blob)
+        this._updateBackgroundImage()
+      }
+      else {
+        this.svg.removeAttribute('width')
+        this.svg.removeAttribute('height')
+      }
+      this.updateBgListItem()
+      if (!skipSave) this.save()
+    }
+
+    async toggleCanny () {
+      if (!this.backgroundImage) return
+      this.cannyEnabled = !this.cannyEnabled
+      if (this.cannyEnabled && !this.cannyObjectURL) {
+        if (this.cannyProcessing) return
+        this.cannyProcessing = true
+        $('canny-btn').textContent = 'Canny (Processing...)'
+        try {
+          const cannyBlob = await Canny.processAsync(this.bgObjectURL)
+          this.cannyObjectURL = URL.createObjectURL(cannyBlob)
+        } catch (e) {
+          console.error('Canny processing failed:', e)
+          this.cannyEnabled = false
+        } finally {
+          this.cannyProcessing = false
+          $('canny-btn').textContent = 'Canny'
+        }
+      }
+      this._updateBackgroundImage()
+      $('canny-btn').classList.toggle('active', this.cannyEnabled)
+    }
+
+    _updateBackgroundImage () {
+      this.backgroundGroup.innerHTML = ''
+      const img = createNS('image'), tempImg = new Image()
+      const url = this.cannyEnabled ? this.cannyObjectURL : this.bgObjectURL
+      setAttributes(img, {href: url, id: 'backgroundImage'})
+      tempImg.onload = () => {
+        const zoom = getCurrentZoom()
+        setAttributes(img, {width: tempImg.naturalWidth, height: tempImg.naturalHeight})
+        setAttributes(this.svg, {width: tempImg.naturalWidth * zoom, height: tempImg.naturalHeight * zoom})
+      }
+      tempImg.src = url
+      this.backgroundGroup.appendChild(img)
+    }
+
+    updateBgListItem () {
+      if (!this.backgroundName) {
+        if (this.bgListItem) {
+          this.bgListItem.remove()
+          this.bgListItem = null
+        }
+        return
+      }
+      if (!this.bgListItem) {
+        this.bgListItem = document.createElement('div')
+        this.bgListItem.className = 'entity-item'
+        this.bgListItem.style.cssText = 'background:#f0f0f0; border-style:dashed'
+        this.bgListItem.innerHTML = '<div class="name-label"></div><div class="delete-btn">×</div>'
+        this.bgListItem.querySelector('.delete-btn').onclick = (e) => {
+          e.stopPropagation()
+          this.setBackground(null, null)
+        }
+        this.entityList.prepend(this.bgListItem)
+      }
+      this.bgListItem.querySelector('.name-label').textContent = `Background: ${this.backgroundName}`
+    }
+
+    addShape (shape, skipSave = false) {
+      this.entities.push(shape)
+      this.addEntityItem(shape)
+      shape.el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.dispatchEvent(new CustomEvent('canvasShapeClick', {detail: {shape}}))
+      })
+      if (!skipSave) this.save()
+    }
+
+    addEntityItem (shape) {
+      const id = shape.id, item = document.createElement('div')
+      item.className = 'entity-item'
+      item.setAttribute('data-id', id)
+      item.innerHTML = `<div class="name-label">${shape.name || id}</div><input type="text" value="${shape.name || id}"><div class="delete-btn">×</div>`
+      item.onclick = (e) => {
+        e.stopPropagation()
+        this.dispatchEvent(new CustomEvent('sidebarShapeClick', {detail: {shape}}))
+      }
+      const label = item.querySelector('.name-label'), input = item.querySelector('input'),
+        del = item.querySelector('.delete-btn')
+      del.onclick = (e) => {
+        e.stopPropagation()
+        this.removeShape(shape)
+      }
+      const finish = () => {
+        shape.name = label.textContent = input.value.trim() || id
+        item.classList.remove('editing')
+        this.save()
+      }
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') finish()
+        if (e.key === 'Escape') {
+          input.value = shape.name || id
+          item.classList.remove('editing')
+        }
+      }
+      input.onblur = finish
+      input.onmousedown = (e) => e.stopPropagation()
+      item.ondblclick = (e) => {
+        e.stopPropagation()
+        item.classList.add('editing')
+        input.focus()
+        input.select()
+      }
+      this.entityList.appendChild(item)
+      this.entityItemsMap.set(shape, item)
+    }
+
+    updateSelection (sel) {
+      this.entityItemsMap.forEach((item, s) => {
+        item.classList.toggle('selected', s === sel)
+        if (s === sel) item.scrollIntoView({behavior: 'smooth', block: 'nearest'})
+      })
+    }
+
+    removeShape (shape) {
+      this.entities = this.entities.filter(s => s !== shape)
+      const item = this.entityItemsMap.get(shape)
+      if (item) {
+        item.remove()
+        this.entityItemsMap.delete(shape)
+      }
+      if (shape.el && shape.el.parentNode) shape.el.remove()
+      dispatchCustom(this, 'deleteShape', {shape})
+      this.save()
+    }
+
+    async save () {
+      const data = {
+        entities: this.entities.map(s => s.toJSON()),
+        entityCount: this.entityCount,
+        backgroundImage: this.backgroundImage,
+        backgroundName: this.backgroundName
+      }
+      try {
+        await dbSet('svg-editor-doc', data)
+      } catch (e) { console.error('Save to IndexedDB failed:', e) }
+    }
+
+    async saveToFile () {
+      const z = new JSZip(), d = {
+        entities: this.entities.map(s => s.toJSON()),
+        entityCount: this.entityCount,
+        backgroundName: this.backgroundName
+      }
+      z.file('document.json', JSON.stringify(d))
+      if (this.backgroundImage instanceof Blob) {
+        z.file(this.backgroundName || 'background', this.backgroundImage)
+      }
+      const b = await z.generateAsync({type: 'blob'}), u = URL.createObjectURL(b), a = document.createElement('a')
+      a.href = u
+      a.download = 'project.zip'
+      a.click()
+      URL.revokeObjectURL(u)
+    }
+
+    async loadFromFile (f) {
+      const z = await JSZip.loadAsync(f), jf = z.file('document.json')
+      if (!jf) return
+      const d = JSON.parse(await jf.async('string'))
+      if (d.backgroundName) {
+        const bf = z.file(d.backgroundName)
+        if (bf) d.backgroundImage = await bf.async('blob')
+      }
+      this._applyData(d)
+      transitionToSelect()
+    }
+
+    async loadFromDB () {
+      const d = await dbGet('svg-editor-doc')
+      if (d) this._applyData(d)
+    }
+
+    _applyData (d) {
+      Object.assign(this, {
+        entities: [],
+        entityCount: d.entityCount || 0,
+        bgListItem: null
+      })
+      this.shapesGroup.innerHTML = this.entityList.innerHTML = ''
+      this.entityItemsMap.clear()
+      if (d.backgroundImage) this.setBackground(d.backgroundImage, d.backgroundName, true)
+      if (d.entities) d.entities.forEach(ent => {
+        const s = ent.type === 'rect' ? new RectangleShape(ent.id, null, 0) : new EllipseShape(ent.id, null, 0)
+        s.name = ent.name
+        if (ent.transform) s.setAttributes({transform: ent.transform})
+        s.setAttributes(ent.attributes)
+        this.shapesGroup.appendChild(s.el)
+        this.addShape(s, true)
+      })
+      this.save()
+    }
+  }
+
+  class Mode extends EventTarget {
+    constructor (doc, name, svg) {
+      super()
+      Object.assign(this, {doc, name, svg, listeners: [], activationSelector: null})
+    }
+
+    listen (target, type, fn, opts) {
+      target.addEventListener(type, fn, opts)
+      this.listeners.push({target, type, fn, opts})
+    }
+
+    activate () {
+      if (this.activationSelector)
+        $(this.activationSelector).classList.toggle('active', true)
+      let $status = $('status')
+      if ($status) $status.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
+      this.svg.classList.add(this.name)
+      this.listen(this.doc, 'sidebarShapeClick', (e) => transitionToSelect(e.detail.shape))
+    }
+
+    deactivate () {
+      this.listeners.forEach(({target, type, fn, opts}) => target.removeEventListener(type, fn, opts))
+      this.listeners = []
+      this.svg.classList.remove(this.name)
+      if (this.activationSelector)
+        $(this.activationSelector).classList.toggle('active', false)
+    }
+  }
+
+  class BaseDrawingMode extends Mode {
+    constructor (doc, name, svg) {
+      super(doc, name, svg)
+      Object.assign(this, {startPoint: {x: 0, y: 0}, currentElement: null})
+    }
+
+    activate () {
+      super.activate()
+      this.listen(this.svg, 'mousedown', e => this.onMouseDown(e))
+    }
+
+    onMouseDown (e) {
+      if (e.button !== 0) return
+      const pos = getMousePos(e, $zoomGroup)
+      this.startPoint = pos
+      this.doc.entityCount++
+      this.currentElement = this.createShape(`entity-${this.doc.entityCount}`, pos, this.doc.entityCount)
+      this.doc.shapesGroup.appendChild(this.currentElement.el)
+      this.doc.addShape(this.currentElement)
+      this.listen(window, 'mousemove', this._move = e => this.onMouseMove(e))
+      this.listen(window, 'mouseup', this._up = e => this.onMouseUp(e))
+    }
+
+    onMouseMove (e) { this.updateShape(getMousePos(e, $zoomGroup)) }
+
+    onMouseUp (_e) {
+      const el = this.currentElement
+      this.doc.save()
+      dispatchCustom(this, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
+    }
+  }
+
+  class DrawRectangleMode extends BaseDrawingMode {
+    constructor (doc, svg) {
+      super(doc, 'rect', svg)
+      this.activationSelector = 'rect-btn'
+    }
+
+    createShape (id, start, label) { return new RectangleShape(id, start, label) }
+
+    updateShape (pos) {
+      const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
+      this.currentElement.setAttributes({
+        x: w < 0 ? pos.x : this.startPoint.x,
+        width: Math.abs(w),
+        y: h < 0 ? pos.y : this.startPoint.y,
+        height: Math.abs(h)
+      })
+    }
+  }
+
+  class DrawEllipseMode extends BaseDrawingMode {
+    constructor (doc, svg) {
+      super(doc, 'ellipse', svg)
+      this.activationSelector = 'ellipse-btn'
+    }
+
+    createShape (id, start, count) { return new EllipseShape(id, start, count) }
+
+    updateShape (pos) {
+      const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
+      this.currentElement.setAttributes({
+        cx: this.startPoint.x + w / 2,
+        cy: this.startPoint.y + h / 2,
+        rx: Math.abs(w) / 2,
+        ry: Math.abs(h) / 2
+      })
+    }
+  }
+
+  class SelectionIdleMode extends Mode {
+    constructor (doc, svg) {
+      super(doc, 'select', svg)
+      this.activationSelector = 'select-btn'
+    }
+
+    activate () {
+      super.activate()
+      this.doc.updateSelection(null)
+      $('handles-group').style.visibility = 'hidden'
+      this.listen(this.svg, 'mousedown', (e) => {
+        if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
+          transitionToSelect()
+        }
+      })
+      this.listen(this.doc, 'canvasShapeClick', (e) => transitionToSelect(e.detail.shape))
+      if (this.doc.bgListItem) {
+        this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
+      }
+    }
+  }
+
+  class SelectionActiveMode extends Mode {
+    constructor (doc, svg, selectedElement, handles = $('handles-group')) {
+      super(doc, 'select', svg)
+      Object.assign(this, {
+        selectedElement,
+        isRotating: false,
+        isResizing: false,
+        startPoint: {x: 0, y: 0},
+        initialRotation: 0,
+        startAngle: 0,
+        handles,
+        activationSelector: 'select-btn'
+      })
+    }
+
+    rotateHandleMousedown (e) {
+      e.stopPropagation()
+      this.isRotating = true
+      document.body.style.cursor = 'grabbing'
+      const pos = getMousePos(e, $zoomGroup), c = this.selectedElement.getCenter()
+      this.initialRotation = this.selectedElement.getRotation()
+      this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
+    }
+
+    resizeHandleMousedown (e) {
+      e.stopPropagation()
+      this.isResizing = true
+      this.resizeDir = e.currentTarget.getAttribute('data-dir')
+      document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
+      this.startPoint = getMousePos(e, $zoomGroup)
+      this.initialRect = this.selectedElement.getInitialRect()
+    }
+
+    _keyHandler (e) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.entity-item.editing')) {
+        this.doc.removeShape(this.selectedElement)
+      }
+    }
+
+    _down (e) {
+      if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
+        transitionToSelect()
+      }
+    }
+
+    _move (e) {
+      const pos = getMousePos(e, $zoomGroup), s = this.selectedElement
+      if (this.isRotating && s) {
+        const c = s.getCenter(),
+          rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
+        s.setTransform(rot, c.x, c.y)
+        this.updateHandles()
+      }
+      else if (this.isResizing && s) {
+        const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
+          dy = pos.y - this.startPoint.y
+        s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
+        const c = s.getCenter()
+        s.setTransform(rot, c.x, c.y)
+        this.updateHandles()
+      }
+    }
+
+    _up (_e) {
+      if (this.isRotating || this.isResizing) {
+        this.isRotating = this.isResizing = false
+        document.body.style.cursor = ''
+        if (this.selectedElement) this.doc.save()
+      }
+    }
+
+    activate () {
+      super.activate()
+      const s = this.selectedElement
+      s.el.classList.add('selected')
+      this.updateHandles()
+      this.doc.updateSelection(s)
+      this.listen(this.svg, 'mousedown', (e) => this._down(e))
+      this.listen(window, 'mousemove', (e) => this._move(e))
+      this.listen(window, 'mouseup', (e) => this._up(e))
+      this.listen(window, 'keydown', (e) => this._keyHandler(e))
+      this.listen(this.doc, 'deleteShape', (e) => {
+        if (e.detail.shape === this.selectedElement) transitionToSelect()
+      })
+      this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => this.rotateHandleMousedown(e))
+      this.handles.querySelectorAll('.handle').forEach(h => {
+        this.listen(h, 'mousedown', (e) => this.resizeHandleMousedown(e))
+      })
+      this.listen(this.doc, 'canvasShapeClick', (e) => transitionToSelect(e.detail.shape))
+      if (this.doc.bgListItem) {
+        this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
+      }
+    }
+
+    deactivate () {
+      if (this.selectedElement) this.selectedElement.el.classList.remove('selected')
+      super.deactivate()
+    }
+
+    updateHandles () {
+      const s = this.selectedElement, b = s.getLocalBBox(), rot = s.getRotation(), c = s.getCenter(),
+        hg = this.handles
+      hg.style.visibility = 'visible'
+      const z = getCurrentZoom()
+      const cz = {x: c.x * z, y: c.y * z}
+      hg.setAttribute('transform', `rotate(${rot}, ${cz.x}, ${cz.y})`)
+      const x = b.x * z, y = b.y * z, w = b.width * z, h = b.height * z
+      const p = {
+        nw: {x: x, y: y}, n: {x: x + w / 2, y: y}, ne: {x: x + w, y: y}, e: {x: x + w, y: y + h / 2},
+        se: {x: x + w, y: y + h}, s: {x: x + w / 2, y: y + h}, sw: {x: x, y: y + h}, w: {x: x, y: y + h / 2}
+      }
+      hg.querySelectorAll('.handle').forEach(h => {
+        const p_ = p[h.getAttribute('data-dir')]
+        setAttributes(h, {x: p_.x, y: p_.y})
+      })
+      const rh = hg.querySelector('.rotate-handle'), rl = $('rotate-line'), gap = 20
+      setAttributes(rh, {x: x + w / 2, y: y - gap})
+      setAttributes(rl, {x1: x + w / 2, y1: y, x2: x + w / 2, y2: y - gap, 'stroke-width': 1})
+    }
+  }
+</script>
+<script>
+  let doc = new Document()
+  let $svg = $('svg-canvas')
+  let $zoomGroup = $('zoom-group')
+  let $viewport = $('canvas-container')
+  let activeMode = null
+  // init the current mode listener
+  setMode(SelectionIdleMode)
+  doc.loadFromDB().then(() => {
+    transitionToSelect()
+    window.addEventListener('beforeunload', () => doc.save())
+  })
+  $viewport.addEventListener('wheel', e => {
+    if (e.ctrlKey) {
+      e.preventDefault()
+      zoom(e.deltaY < 0 ? 1.05 : 0.95, getMousePos(e, $zoomGroup))
+    }
+  }, {passive: false})
+
+  function getCurrentZoom () {
+    return parseFloat($zoomGroup.style.scale) || 1
+  }
+
+  function zoom (factor, center) {
+    let currentZoom = getCurrentZoom()
+    let postZoom = null
+    let newZoom = currentZoom * factor
+    if (factor === 0) {
+      newZoom = 1
+    }
+    else {
+      const rect = $viewport.getBoundingClientRect()
+      let minZoom = 0.1
+      if ($svg.hasAttribute('width')) {
+        const w = parseFloat($svg.getAttribute('width')), h = parseFloat($svg.getAttribute('height'))
+        minZoom = Math.min(rect.width / w, rect.height / h)
+      }
+      newZoom = Math.max(minZoom, newZoom)
+      if (center) {
+        postZoom = () => {
+          $viewport.scrollLeft += center.x * (newZoom - currentZoom)
+          $viewport.scrollTop += center.y * (newZoom - currentZoom)
+        }
+      }
+    }
+    if (newZoom === currentZoom)
+      return
+    $zoomGroup.style.scale = `${newZoom}`
+    let $backgroundImage = $('backgroundImage')
+    if ($backgroundImage) {
+      setAttributes($svg, {
+        width: newZoom * $backgroundImage.width.baseVal.value,
+        height: newZoom * $backgroundImage.height.baseVal.value
+      })
+    }
+    if (postZoom)
+      postZoom()
+    if (activeMode instanceof SelectionActiveMode) activeMode.updateHandles()
+  }
+
+  function setMode (ModeClass, arg) {
+    if (activeMode) activeMode.deactivate()
+    activeMode = new ModeClass(doc, $svg, arg)
+    activeMode.addEventListener('modeTransition', e => {
+      console.log('modeTransition', e)
+      invokeLater(() => {setMode(e.detail.newMode, e.detail.arg)})
+    }, {once: true})
+    if (activeMode) {
+      activeMode.activate()
+    }
+  }
+
+  function transitionToSelect (el) {
+    if (el) dispatchCustom(activeMode, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
+    else dispatchCustom(activeMode, 'modeTransition', {newMode: SelectionIdleMode})
+  }
+
+  function handleBgChange (e) {
+    const f = e.target.files[0]
+    if (f) doc.setBackground(f, f.name)
+  }
+
+  async function handleLoadFile (e) {
+    const f = e.target.files[0]
+    if (f) await doc.loadFromFile(f)
+    e.target.value = ''
+  }
+
+  function toggleCanny () {
+    doc.toggleCanny()
+  }
+</script>
+</body>
+</html>
