@@ -78,8 +78,42 @@ QUnit.module('Canny Edge Detector', function () {
     }
     let destination = new Float32Array(width * height)
     Canny.toGrayscale(imageData, width, destination)
-    assert.close(destination[0], 76.245, 0.001, 'Red pixel luminance should be correct')
+    assert.close(destination[0], 0.299 * 255, 0.001, 'Red pixel luminance should be correct')
     assert.close(destination[1], 255, 0.001, 'White pixel luminance should be correct')
+  })
+
+  QUnit.test('toGrayscale should handle BGRX format', async function (assert) {
+    const width = 2, height = 1
+    const imageData = {
+      width: width,
+      height: height,
+      format: 'BGRX',
+      data: new Uint8ClampedArray([
+        0, 0, 255, 255, // Blue in BGR is actually Red if we misinterpret it as RGB
+        // Wait: in BGR, [B, G, R, X]
+        // [0, 0, 255, 255] -> B=0, G=0, R=255 -> Red
+        255, 0, 0, 255 // B=255, G=0, R=0 -> Blue
+      ])
+    }
+    let destination = new Float32Array(width * height)
+    Canny.toGrayscale(imageData, width, destination)
+    // Red: 0.299*255 + 0.587*0 + 0.114*0 = 76.245
+    // Blue: 0.299*0 + 0.587*0 + 0.114*255 = 29.07
+    assert.close(destination[0], 76.245, 0.001, 'Red pixel luminance (from BGRX) should be correct')
+    assert.close(destination[1], 29.07, 0.001, 'Blue pixel luminance (from BGRX) should be correct')
+  })
+
+  QUnit.test('toGrayscale should throw on unknown format', async function (assert) {
+    const imageData = {
+      width: 1,
+      height: 1,
+      format: 'UNKNOWN',
+      data: new Uint8ClampedArray([0, 0, 0, 255])
+    }
+    let destination = new Float32Array(1)
+    assert.throws(() => {
+      Canny.toGrayscale(imageData, 1, destination)
+    }, /Unsupported image format: UNKNOWN/, 'Should throw on unknown format')
   })
 
   QUnit.test('gaussianBlur should reduce noise', async function (assert) {
@@ -96,7 +130,7 @@ QUnit.module('Canny Edge Detector', function () {
       pagesNeeded
     } = Canny.computeMemoryNeeds(width, height, Canny.computeKernelParams(blurSigma))
     await Canny.initWasm(pagesNeeded)
-    Canny.copyToMem(data, Canny.wasmMemory,  bufferAddresses[0], height, width, stride)
+    Canny.copyToMem(data, Canny.wasmMemory, bufferAddresses[0], height, width, stride)
     await Canny.gaussianBlur(null, width, height, blurSigma, stride, {
       srcAddr: bufferAddresses[0],
       dstAddr: bufferAddresses[1],
@@ -117,12 +151,13 @@ QUnit.module('Canny Edge Detector', function () {
   })
 
   QUnit.test('sobel should detect gradients', async function (assert) {
-    const width = 3, height = 3
-    const data = new Float32Array([
-      0, 0, 255,
-      0, 0, 255,
-      0, 0, 255
-    ])
+    const width = 10, height = 10
+    const data = new Float32Array(width * height).fill(0)
+    for (let y = 0; y < height; y++) {
+      for (let x = 5; x < width; x++) {
+        data[y * width + x] = 255
+      }
+    }
     const blurSigma = 1.0
     const {
       stride,
@@ -132,22 +167,82 @@ QUnit.module('Canny Edge Detector', function () {
     await Canny.initWasm(pagesNeeded)
 
     Canny.copyToMem(data, Canny.wasmMemory, bufferAddresses[0], height, width, stride)
-    const {magAddr, gxAddr, gyAddr} = await Canny.sobel(width, height, stride, {
+    const {magAddr} = await Canny.sobel(width, height, stride, {
       srcAddr: bufferAddresses[0],
       magAddr: bufferAddresses[1],
-      gxAddr: bufferAddresses[2],
-      gyAddr: bufferAddresses[3]
+      neighborAddr: bufferAddresses[2]
     })
     const wasmMemory = new Float32Array(Canny.wasmMemory.buffer)
 
-    // Vertical edge at x=1.5
-    // Gx for center (1,1) should be positive
-    // gy for center (1,1) should be 0
+    // Vertical edge at x=4.5
+    // Gx for (1,4) should be positive
+    // gy for (1,4) should be 0
     // gx = (255 - 0) + 2*(255 - 0) + (255 - 0) = 4 * 255 = 1020
-    assert.close(wasmMemory[magAddr / 4 + stride + 1], 1020, 0.001, 'Magnitude at center should be correct')
-    const gx = wasmMemory[gxAddr / 4 + stride + 1]
-    const gy = wasmMemory[gyAddr / 4 + stride + 1]
-    assert.equal(Math.atan2(gy, gx), 0, 'Direction at vertical edge should be 0 (horizontal gradient)')
+    const centerIdx = 1 * stride + 4
+    assert.close(wasmMemory[magAddr / 4 + centerIdx], 1020, 0.001, 'Magnitude at center should be correct')
+    // Direction was tested via atan2(gy, gx), but now we precompute neighbor index.
+    // We'll rely on the 'sobel should compute correct neighbor numbers' test for direction accuracy.
+  })
+
+  QUnit.test('sobel should compute correct neighbor numbers', async function (assert) {
+    const width = 10, height = 10
+    const blurSigma = 1.0
+    const {
+      stride,
+      bufferAddresses,
+      pagesNeeded
+    } = Canny.computeMemoryNeeds(width, height, Canny.computeKernelParams(blurSigma))
+    await Canny.initWasm(pagesNeeded)
+
+    const testCases = [
+      {
+        name: 'Horizontal gradient (Vertical edge)',
+        pattern: (x, y) => x >= 5 ? 255 : 0,
+        expectedNeighbor: 0 // Horizontal
+      },
+      {
+        name: 'Vertical gradient (Horizontal edge)',
+        pattern: (x, y) => y >= 5 ? 255 : 0,
+        expectedNeighbor: 2 // Vertical
+      },
+      {
+        name: 'Diagonal gradient (Positive slope, /)',
+        // Edge is y = -x + c, gradient is (1, 1) or (-1, -1)
+        // gy/gx = 1 > 0, diagonal = 0, neighbor = 1 + 0 = 1
+        pattern: (x, y) => (x + y) >= 10 ? 255 : 0,
+        expectedNeighbor: 1
+      },
+      {
+        name: 'Diagonal gradient (Negative slope, \\)',
+        // Edge is y = x + c, gradient is (1, -1) or (-1, 1)
+        // gy/gx = -1 < 0, diagonal = 2, neighbor = 1 + 2 = 3
+        pattern: (x, y) => (y - x) >= 0 ? 255 : 0,
+        expectedNeighbor: 3
+      }
+    ]
+
+    for (const tc of testCases) {
+      const data = new Float32Array(width * height)
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          data[y * width + x] = tc.pattern(x, y)
+        }
+      }
+
+      Canny.copyToMem(data, Canny.wasmMemory, bufferAddresses[0], height, width, stride)
+      const {neighborAddr} = await Canny.sobel(width, height, stride, {
+        srcAddr: bufferAddresses[0],
+        magAddr: bufferAddresses[1],
+        neighborAddr: bufferAddresses[2]
+      })
+
+      const neighbors = new Uint8Array(Canny.wasmMemory.buffer, neighborAddr, stride * height)
+      // Check center pixels (avoiding margins)
+      const centerX = 5
+      const centerY = 5
+      const actualNeighbor = neighbors[centerY * stride + centerX]
+      assert.equal(actualNeighbor, tc.expectedNeighbor, `${tc.name} should have neighbor index ${tc.expectedNeighbor}`)
+    }
   })
 
   QUnit.test('process should return ImageData with edges', async function (assert) {

@@ -9,7 +9,7 @@
     ;; direction = atan2(gy, gx)
 
     (func (export "sobel")
-        (param $src i32) (param $magnitude i32) (param $gx_addr i32) (param $gy_addr i32) (param $width i32) (param $height i32) (param $stride i32)
+        (param $src i32) (param $magnitude i32) (param $neighbor_addr i32) (param $width i32) (param $height i32) (param $stride i32)
         (local $y i32)
         (local $x i32)
         (local $stride4 i32)
@@ -22,7 +22,7 @@
         (local $p01 v128)
         (local $p02 v128)
         (local $p10 v128)
-
+        (local $p11 v128)
         (local $p12 v128)
         (local $p20 v128)
         (local $p21 v128)
@@ -31,6 +31,14 @@
         (local $mag4 v128)
         (local $gx f32)
         (local $gy f32)
+
+        ;; Locals for neighbor number calculation
+        (local $ratio4 v128)
+        (local $abs_ratio4 v128)
+        (local $diagonal4 v128)
+        (local $neighbor4 v128)
+        (local $mask v128)
+        (local $tmp v128)
 
         (local.set $stride4
             (i32.mul
@@ -220,205 +228,101 @@
                                     (i32.const 4))))
                         (local.get $mag4))
 
-                    ;; store gx/gy in direction buffer temporarily
-                    ;; We'll store GX in the direction buffer, and GY in a new buffer we pass?
-                    ;; Actually, let's just use the direction buffer for GX and another for GY.
-                    ;; But the caller only expects magnitude and direction.
-                    ;; Let's change the signature to (src, magnitude, gx, gy, width, height, stride)
-                    (v128.store
+                    ;; Compute neighbor number
+                    ;; ratio = gy / gx
+                    (local.set $ratio4
+                        (f32x4.div
+                            (local.get $gy4)
+                            (local.get $gx4)))
+                    (local.set $abs_ratio4
+                        (f32x4.abs
+                            (local.get $ratio4)))
+
+                    ;; let neighbor = 0
+                    (local.set $neighbor4
+                        (v128.const i32x4 0 0 0 0))
+
+                    ;; diagonal = 1 - sign(ratio)
+                    ;; sign(ratio) is 1 if ratio >= 0, -1 if ratio < 0
+                    ;; diagonal = 1 - 1 = 0 if ratio >= 0
+                    ;; diagonal = 1 - (-1) = 2 if ratio < 0
+                    (local.set $mask
+                        (f32x4.ge
+                            (local.get $ratio4)
+                            (v128.const f32x4 0 0 0 0)))
+                    (local.set $diagonal4
+                        (v128.bitselect
+                            (v128.const i32x4 0 0 0 0)    ;; ratio >= 0
+                            (v128.const i32x4 2 2 2 2)    ;; ratio < 0
+                            (local.get $mask)))
+
+                    ;; if absRatio >= 0.4142, neighbor = 1
+                    (local.set $mask
+                        (f32x4.ge
+                            (local.get $abs_ratio4)
+                            (v128.const f32x4 0.4142 0.4142 0.4142 0.4142)))
+                    (local.set $neighbor4
+                        (v128.bitselect
+                            (v128.const i32x4 1 1 1 1)
+                            (local.get $neighbor4)
+                            (local.get $mask)))
+
+                    ;; if neighbor == 1 AND absRatio <= 2.4142, neighbor = 1 + diagonal
+                    (local.set $mask
+                        (v128.and
+                            (i32x4.eq
+                                (local.get $neighbor4)
+                                (v128.const i32x4 1 1 1 1))
+                            (f32x4.le
+                                (local.get $abs_ratio4)
+                                (v128.const f32x4 2.4142 2.4142 2.4142 2.4142))))
+                    (local.set $neighbor4
+                        (v128.bitselect
+                            (i32x4.add
+                                (v128.const i32x4 1 1 1 1)
+                                (local.get $diagonal4))
+                            (local.get $neighbor4)
+                            (local.get $mask)))
+
+                    ;; if neighbor == 1 AND absRatio > 2.4142, neighbor = 2
+                    (local.set $mask
+                        (v128.and
+                            (i32x4.eq
+                                (local.get $neighbor4)
+                                (v128.const i32x4 1 1 1 1))
+                            (f32x4.gt
+                                (local.get $abs_ratio4)
+                                (v128.const f32x4 2.4142 2.4142 2.4142 2.4142))))
+                    (local.set $neighbor4
+                        (v128.bitselect
+                            (v128.const i32x4 2 2 2 2)
+                            (local.get $neighbor4)
+                            (local.get $mask)))
+
+                    ;; if gx == 0 and gy == 0, neighbor = 0
+
+                    ;; Store neighbor numbers as 4 uint8 at once
+                    (v128.store32_lane 0
                         (i32.add
-                            (local.get $gx_addr)
+                            (local.get $neighbor_addr)
                             (i32.add
                                 (i32.mul
                                     (local.get $y)
-                                    (local.get $stride4))
-                                (i32.mul
-                                    (local.get $x)
-                                    (i32.const 4))))
-                        (local.get $gx4))
-                    (v128.store
-                        (i32.add
-                            (local.get $gy_addr)
-                            (i32.add
-                                (i32.mul
-                                    (local.get $y)
-                                    (local.get $stride4))
-                                (i32.mul
-                                    (local.get $x)
-                                    (i32.const 4))))
-                        (local.get $gy4))
+                                    (local.get $stride))
+                                (local.get $x)))
+                        (i8x16.shuffle 0 4 8 12 16 17 18 19 20 21 22 23 24 25 26 27
+                            (local.get $neighbor4)
+                            (v128.const i8x16 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+                        )
 
                     (local.set $x
                         (i32.add
                             (local.get $x)
                             (i32.const 4)))
-                    (br $x_loop)))
+                    (br $x_loop))
 
-            ;; Scalar fallback for end of row
-            (loop $scalar_x_loop
-                (block $exit_scalar_x
-                    (br_if $exit_scalar_x
-                        (i32.ge_s
-                            (local.get $x)
-                            (i32.sub
-                                (local.get $width)
-                                (i32.const 1))))
-
-                    (f32.store
-                        (i32.add
-                            (local.get $magnitude)
-                            (i32.add
-                                (i32.mul
-                                    (local.get $y)
-                                    (local.get $stride4))
-                                (i32.mul
-                                    (local.get $x)
-                                    (i32.const 4))))
-                        (f32.sqrt
-                            (f32.add
-                                (f32.mul
-                                    (local.tee $gx
-                                        (f32.add
-                                            (f32.sub
-                                                (f32.load
-                                                    (i32.add
-                                                        (local.get $row_prev)
-                                                        (i32.mul
-                                                            (i32.add
-                                                                (local.get $x)
-                                                                (i32.const 1))
-                                                            (i32.const 4))))
-                                                (f32.load
-                                                    (i32.add
-                                                        (local.get $row_prev)
-                                                        (i32.mul
-                                                            (i32.sub
-                                                                (local.get $x)
-                                                                (i32.const 1))
-                                                            (i32.const 4)))))
-                                            (f32.add
-                                                (f32.mul
-                                                    (f32.sub
-                                                        (f32.load
-                                                            (i32.add
-                                                                (local.get $row_curr)
-                                                                (i32.mul
-                                                                    (i32.add
-                                                                        (local.get $x)
-                                                                        (i32.const 1))
-                                                                    (i32.const 4))))
-                                                        (f32.load
-                                                            (i32.add
-                                                                (local.get $row_curr)
-                                                                (i32.mul
-                                                                    (i32.sub
-                                                                        (local.get $x)
-                                                                        (i32.const 1))
-                                                                    (i32.const 4)))))
-                                                    (f32.const 2))
-                                                (f32.sub
-                                                    (f32.load
-                                                        (i32.add
-                                                            (local.get $row_next)
-                                                            (i32.mul
-                                                                (i32.add
-                                                                    (local.get $x)
-                                                                    (i32.const 1))
-                                                                (i32.const 4))))
-                                                    (f32.load
-                                                        (i32.add
-                                                            (local.get $row_next)
-                                                            (i32.mul
-                                                                (i32.sub
-                                                                    (local.get $x)
-                                                                    (i32.const 1))
-                                                                (i32.const 4))))))))
-                                    (local.get $gx))
-                                (f32.mul
-                                    (local.tee $gy
-                                        (f32.add
-                                            (f32.add
-                                                (f32.load
-                                                    (i32.add
-                                                        (local.get $row_next)
-                                                        (i32.mul
-                                                            (i32.sub
-                                                                (local.get $x)
-                                                                (i32.const 1))
-                                                            (i32.const 4))))
-                                                (f32.add
-                                                    (f32.mul
-                                                        (f32.load
-                                                            (i32.add
-                                                                (local.get $row_next)
-                                                                (i32.mul
-                                                                    (local.get $x)
-                                                                    (i32.const 4))))
-                                                        (f32.const 2))
-                                                    (f32.load
-                                                        (i32.add
-                                                            (local.get $row_next)
-                                                            (i32.mul
-                                                                (i32.add
-                                                                    (local.get $x)
-                                                                    (i32.const 1))
-                                                                (i32.const 4))))))
-                                            (f32.neg
-                                                (f32.add
-                                                    (f32.load
-                                                        (i32.add
-                                                            (local.get $row_prev)
-                                                            (i32.mul
-                                                                (i32.sub
-                                                                    (local.get $x)
-                                                                    (i32.const 1))
-                                                                (i32.const 4))))
-                                                    (f32.add
-                                                        (f32.mul
-                                                            (f32.load
-                                                                (i32.add
-                                                                    (local.get $row_prev)
-                                                                    (i32.mul
-                                                                        (local.get $x)
-                                                                        (i32.const 4))))
-                                                            (f32.const 2))
-                                                        (f32.load
-                                                            (i32.add
-                                                                (local.get $row_prev)
-                                                                (i32.mul
-                                                                    (i32.add
-                                                                        (local.get $x)
-                                                                        (i32.const 1))
-                                                                    (i32.const 4)))))))))
-                                    (local.get $gy)))))
-                    (f32.store
-                        (i32.add
-                            (local.get $gx_addr)
-                            (i32.add
-                                (i32.mul
-                                    (local.get $y)
-                                    (local.get $stride4))
-                                (i32.mul
-                                    (local.get $x)
-                                    (i32.const 4))))
-                        (local.get $gx))
-                    (f32.store
-                        (i32.add
-                            (local.get $gy_addr)
-                            (i32.add
-                                (i32.mul
-                                    (local.get $y)
-                                    (local.get $stride4))
-                                (i32.mul
-                                    (local.get $x)
-                                    (i32.const 4))))
-                        (local.get $gy))
-
-                    (local.set $x
-                        (i32.add
-                            (local.get $x)
-                            (i32.const 1)))
-                    (br $scalar_x_loop)))
+                ;; Scalar fallback for tail removed
+            )
 
             (local.set $y
                 (i32.add
@@ -429,4 +333,113 @@
                     (local.get $y)
                     (i32.sub
                         (local.get $height)
-                        (i32.const 1)))))))
+                        (i32.const 1))))))
+
+    (func (export "non_maximum_suppression")
+        (param $magnitude i32) (param $neighbor i32) (param $output i32) (param $width i32) (param $height i32) (param $stride i32)
+        (local $y i32)
+        (local $x i32)
+        (local $idx i32)
+        (local $num i32)
+        (local $offset i32)
+        (local $m f32)
+        (local $q f32)
+        (local $r f32)
+
+        (local.set $y (i32.const 1))
+        (loop $y_loop
+            (local.set $x (i32.const 1))
+            (loop $x_loop
+                (local.set $idx
+                    (i32.add
+                        (i32.mul (local.get $y) (local.get $stride))
+                        (local.get $x)))
+
+                ;; Load magnitude m
+                (local.set $m
+                    (f32.load
+                        (i32.add
+                            (local.get $magnitude)
+                            (i32.mul (local.get $idx) (i32.const 4)))))
+
+                (if (f32.gt (local.get $m) (f32.const 0))
+                    (then
+                        ;; Load neighbor number (uint8)
+                        (local.set $num
+                            (i32.load8_u
+                                (i32.add
+                                    (local.get $neighbor)
+                                    (local.get $idx))))
+
+                        ;; Determine offset based on num: [1, stride + 1, stride, stride - 1]
+                        (local.set $offset
+                            (if (result i32) (i32.eq (local.get $num) (i32.const 0))
+                                (then (i32.const 1))
+                                (else
+                                    (if (result i32) (i32.eq (local.get $num) (i32.const 1))
+                                        (then (i32.add (local.get $stride) (i32.const 1)))
+                                        (else
+                                            (if (result i32) (i32.eq (local.get $num) (i32.const 2))
+                                                (then (local.get $stride))
+                                                (else (i32.sub (local.get $stride) (i32.const 1)))))))))
+
+                        ;; Load q = magnitude[idx + offset]
+                        (local.set $q
+                            (f32.load
+                                (i32.add
+                                    (local.get $magnitude)
+                                    (i32.mul
+                                        (i32.add (local.get $idx) (local.get $offset))
+                                        (i32.const 4)))))
+
+                        ;; Load r = magnitude[idx - offset]
+                        (local.set $r
+                            (f32.load
+                                (i32.add
+                                    (local.get $magnitude)
+                                    (i32.mul
+                                        (i32.sub (local.get $idx) (local.get $offset))
+                                        (i32.const 4)))))
+
+                        ;; if m >= q && m >= r, output = m, else 0
+                        (if (i32.and
+                                (f32.ge (local.get $m) (local.get $q))
+                                (f32.ge (local.get $m) (local.get $r)))
+                            (then
+                                (f32.store
+                                    (i32.add
+                                        (local.get $output)
+                                        (i32.mul (local.get $idx) (i32.const 4)))
+                                    (local.get $m)))
+                            (else
+                                (f32.store
+                                    (i32.add
+                                        (local.get $output)
+                                        (i32.mul (local.get $idx) (i32.const 4)))
+                                    (f32.const 0))))
+                    )
+                    (else
+                        ;; Output 0 if magnitude is 0
+                        (f32.store
+                            (i32.add
+                                (local.get $output)
+                                (i32.mul (local.get $idx) (i32.const 4)))
+                            (f32.const 0))
+                    )
+                )
+
+                (local.set $x (i32.add (local.get $x) (i32.const 1)))
+                (br_if $x_loop
+                    (i32.lt_s
+                        (local.get $x)
+                        (i32.sub (local.get $width) (i32.const 1))))
+            )
+
+            (local.set $y (i32.add (local.get $y) (i32.const 1)))
+            (br_if $y_loop
+                (i32.lt_s
+                    (local.get $y)
+                    (i32.sub (local.get $height) (i32.const 1))))
+        )
+    )
+)

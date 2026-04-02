@@ -5,8 +5,9 @@
     <title>SVG 2D Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module">
-        import Canny from './canny.js';
-        window.Canny = Canny;
+      import Canny from './canny.js'
+
+      window.Canny = Canny
     </script>
     <style>
         body, html {
@@ -490,8 +491,10 @@
         this.cannyProcessing = true
         $('canny-btn').textContent = 'Canny (Processing...)'
         try {
+          console.time('canny processing including worker overhead')
           const cannyBlob = await Canny.processAsync(this.bgObjectURL)
           this.cannyObjectURL = URL.createObjectURL(cannyBlob)
+          console.timeEnd('canny processing including worker overhead')
         } catch (e) {
           console.error('Canny processing failed:', e)
           this.cannyEnabled = false

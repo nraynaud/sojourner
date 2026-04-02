@@ -5,18 +5,23 @@ self.onmessage = async (e) => {
   try {
     if (typeof source === 'string') {
       const resp = await fetch(source)
-      const blob = await resp.blob()
-      const bitmap = await createImageBitmap(blob)
-      const {width, height} = bitmap
-      const canvas = new OffscreenCanvas(width, height)
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(bitmap, 0, 0)
-      source = ctx.getImageData(0, 0, width, height)
-      bitmap.close()
+      const contentType = resp.headers.get('content-type') || 'image/png'
+      const type = contentType.split(';')[0]
+      const decoder = new ImageDecoder({
+        data: resp.body,
+        type: type,
+      })
+      const {image} = await decoder.decode()
+      const {displayWidth: width, displayHeight: height} = image
+      const data = new Uint8ClampedArray(width * height * 4)
+      await image.copyTo(data)
+      source = {data, width, height, format: image.format}
+      image.close()
+      decoder.close()
     }
     const result = await Canny.process(source, options)
     const canvas = new OffscreenCanvas(result.width, result.height)
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', {alpha: false})
     ctx.putImageData(result, 0, 0)
     const blob = await canvas.convertToBlob()
     self.postMessage({result: blob})
