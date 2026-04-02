@@ -1,4 +1,37 @@
-class Canny {
+import WabtModule from './lib/libwabt.js'
+
+export default class Canny {
+  static wasmMemory = null
+
+  static sobelModule = null
+
+  static async initWasm (pagesNeeded = 1) {
+    if (this.wasmModule) return
+    console.time('initWasm')
+    const wabt = await WabtModule({
+      locateFile: (url) => {
+        if (url.endsWith('.wasm')) {
+          return new URL('./lib/' + url, import.meta.url).href
+        }
+        return url
+      }
+    })
+    const [convolveWat, sobelWat] = await Promise.all([
+      fetch('./convolve.wat').then(r => r.text()),
+      fetch('./sobel.wat').then(r => r.text())
+    ])
+
+    this.wasmMemory = new WebAssembly.Memory({initial: pagesNeeded})
+    let importObject = {env: {memory: this.wasmMemory}}
+    const compile = async (filname, text) => {
+      const module = wabt.parseWat(filname, text, {relaxed_simd: true})
+      return (await WebAssembly.instantiate(module.toBinary().buffer, importObject)).instance
+    }
+    this.wasmModule = await compile('convolve.wat', convolveWat)
+    this.sobelModule = await compile('sobel.wat', sobelWat)
+    console.timeEnd('initWasm')
+  }
+
   /**
    * Applies Canny edge detection to ImageData.
    * @param {ImageData} imageData - The source image data.
@@ -8,13 +41,48 @@ class Canny {
    * @param {number} [options.blurSigma=1.4] - Gaussian blur sigma.
    * @returns {ImageData} - A new ImageData containing the edges.
    */
-  static process (imageData, {lowThreshold = 20, highThreshold = 50, blurSigma = 1.4} = {}) {
+  static async process (imageData, {lowThreshold = 20, highThreshold = 50, blurSigma = 1.4} = {}) {
+    console.time('Canny Total')
     const {width, height} = imageData
-    const gray = this.toGrayscale(imageData)
-    const blurred = this.gaussianBlur(gray, width, height, blurSigma)
-    const {magnitude, direction} = this.sobel(blurred, width, height)
-    const suppressed = this.nonMaximumSuppression(magnitude, direction, width, height)
+    const {
+      stride,
+      kernelMemSize,
+      bufferAddresses,
+      kernelAddr,
+      pagesNeeded
+    } = this.computeMemoryNeeds(width, height, this.computeKernelParams(blurSigma))
+
+    await this.initWasm(pagesNeeded)
+
+    console.time('toGrayscale')
+    this.toGrayscale(imageData, stride, new Float32Array(this.wasmMemory.buffer, bufferAddresses[0]))
+    console.timeEnd('toGrayscale')
+    console.time('gaussianBlur')
+    this.gaussianBlur(null, width, height, blurSigma, stride, {
+      srcAddr: bufferAddresses[0],
+      dstAddr: bufferAddresses[1],
+      kernelAddr,
+      kernelMemSize
+    })
+    console.timeEnd('gaussianBlur')
+    console.time('sobel')
+    const {magAddr, gxAddr, gyAddr} = this.sobel(width, height, stride, {
+      srcAddr: bufferAddresses[0],
+      magAddr: bufferAddresses[1],
+      gxAddr: bufferAddresses[2],
+      gyAddr: bufferAddresses[3]
+    })
+    console.timeEnd('sobel')
+    console.time('nonMaximumSuppression')
+    const magnitude = new Float32Array(this.wasmMemory.buffer, magAddr, stride * height)
+    const gx = new Float32Array(this.wasmMemory.buffer, gxAddr, stride * height)
+    const gy = new Float32Array(this.wasmMemory.buffer, gyAddr, stride * height)
+
+    const suppressed = this.nonMaximumSuppression(magnitude, gx, gy, width, height, stride)
+    console.timeEnd('nonMaximumSuppression')
+    console.time('hysteresis')
     const edges = this.hysteresis(suppressed, width, height, lowThreshold, highThreshold)
+    console.timeEnd('hysteresis')
 
     const result = new Uint8ClampedArray(width * height * 4)
     for (let i = 0; i < width * height; i++) {
@@ -23,7 +91,31 @@ class Canny {
       result[idx] = result[idx + 1] = result[idx + 2] = val
       result[idx + 3] = 255
     }
-    return new ImageData(result, width, height)
+    console.timeEnd('Canny Total')
+    if (typeof ImageData !== 'undefined') {
+      return new ImageData(result, width, height)
+    }
+    else {
+      return {data: result, width, height}
+    }
+  }
+
+  static computeMemoryNeeds (width, height, kernelMemSize) {
+    // Pre-allocate all WASM memory needed for the pipeline
+    const stride = (width + 3) & ~3
+    const bytesPerElement = Float32Array.BYTES_PER_ELEMENT
+    const bufferSize = stride * height * bytesPerElement
+    const totalSize = bufferSize * 4 + kernelMemSize // Sobel needs 4 buffers, Gaussian needs 2 + kernel
+    const pagesNeeded = Math.ceil(totalSize / 65536) + 1
+    const bufferAddresses = [0, 1, 2, 3].map(i => i * bufferSize)
+    const kernelAddr = bufferAddresses[bufferAddresses.length - 1] + bufferSize
+    return {stride, kernelMemSize, bufferAddresses, kernelAddr, pagesNeeded}
+  }
+
+  static computeKernelParams (blurSigma) {
+    const bytesPerElement = Float32Array.BYTES_PER_ELEMENT
+    const kernelSize = Math.ceil(blurSigma * 3) * 2 + 1
+    return (kernelSize + 3 & ~3) * bytesPerElement
   }
 
   /**
@@ -35,7 +127,7 @@ class Canny {
    */
   static async processAsync (source, options = {}, workerScript = 'canny-worker.js') {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(workerScript)
+      const worker = new Worker(workerScript, {type: 'module'})
       worker.onmessage = e => {
         if (e.data.error) reject(new Error(e.data.error))
         else resolve(e.data.result)
@@ -51,105 +143,102 @@ class Canny {
     })
   }
 
-  static toGrayscale (imageData) {
-    const {data} = imageData, len = data.length / 4
-    const gray = new Float32Array(len)
-    for (let i = 0; i < len; i++) {
-      const idx = i * 4
-      // Standard luminance weights: 0.299R + 0.587G + 0.114B
-      gray[i] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+  static toGrayscale (imageData, dstStride, destinationBuffer) {
+    const {data, width, height} = imageData
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x
+        const idx = i * 4
+        const wasmIdx = y * dstStride + x
+        // Standard luminance weights: 0.299R + 0.587G + 0.114B
+        destinationBuffer[wasmIdx] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+      }
     }
-    return gray
   }
 
-  static gaussianBlur (data, width, height, sigma) {
-    const size = Math.ceil(sigma * 3) * 2 + 1
-    const kernel = new Float32Array(size)
-    const center = Math.floor(size / 2)
+  static copyToMem (src, memory, dstAddr, height, srcWidth, dstStride) {
+    const dstView = new Float32Array(memory.buffer, dstAddr)
+    for (let y = 0; y < height; y++) {
+      dstView.set(src.subarray(y * srcWidth, (y + 1) * srcWidth), y * dstStride)
+    }
+  }
+
+  static gaussianBlur (data, width, height, sigma, stride, {srcAddr, dstAddr, kernelAddr, kernelMemSize}) {
+    const kernelElements = kernelMemSize / 4
+    const center = Math.floor(kernelElements / 2)
+    const kernelView = new Float32Array(this.wasmMemory.buffer, kernelAddr, kernelElements)
     let sum = 0
-    for (let i = 0; i < size; i++) {
+    for (let i = 0; i < kernelElements; i++) {
       const x = i - center
-      kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma))
-      sum += kernel[i]
+      kernelView[i] = Math.exp(-(x * x) / (2 * sigma * sigma))
+      sum += kernelView[i]
     }
-    for (let i = 0; i < size; i++) kernel[i] /= sum
-
-    const temp = new Float32Array(data.length)
-    const result = new Float32Array(data.length)
-
-    const convolve = (src, dst, w, h, horizontal) => {
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          let val = 0, weight = 0
-          for (let i = 0; i < size; i++) {
-            const offset = i - center
-            const ix = x + (horizontal ? offset : 0)
-            const iy = y + (horizontal ? 0 : offset)
-            if (ix >= 0 && ix < w && iy >= 0 && iy < h) {
-              val += src[iy * w + ix] * kernel[i]
-              weight += kernel[i]
-            }
-          }
-          dst[y * w + x] = val / weight
-        }
-      }
-    }
-
-    convolve(data, temp, width, height, true)
-    convolve(temp, result, width, height, false)
-
-    return result
+    for (let i = 0; i < kernelElements; i++) kernelView[i] /= sum
+    const {convolve_1d, copy_rect_transposed} = this.wasmModule.exports
+    console.time('convolve')
+    // Horizontal pass
+    // The horizontal pass transposes: (x, y) in src -> (y, x) in dst
+    // Copy left margin
+    copy_rect_transposed(srcAddr, dstAddr, 0, 0, center, height, stride, height)
+    // Copy right margin and tail
+    const end_simd = (width - center) - ((width - center - center) % 4)
+    const start_tail = center + end_simd
+    copy_rect_transposed(srcAddr, dstAddr, start_tail, 0, width - start_tail, height, stride, height)
+    convolve_1d(srcAddr, dstAddr, 0, height, width, stride, height, kernelAddr, kernelElements)
+    // Vertical pass
+    // Transpose back: (y, x) in dst -> (x, y) in src
+    // Copy top margin
+    copy_rect_transposed(dstAddr, srcAddr, 0, 0, width, center, height, stride)
+    // Copy bottom margin and tail
+    const end_simd_v = (height - center) - ((height - center - center) % 4)
+    const start_tail_v = center + end_simd_v
+    copy_rect_transposed(dstAddr, srcAddr, 0, start_tail_v, width, height - start_tail_v, height, stride)
+    convolve_1d(dstAddr, srcAddr, 0, width, height, height, stride, kernelAddr, kernelElements)
+    console.timeEnd('convolve')
+    return srcAddr
   }
 
-  static sobel (data, width, height) {
-    const magnitude = new Float32Array(data.length)
-    const direction = new Float32Array(data.length)
+  static sobel (width, height, stride, {srcAddr, magAddr, gxAddr, gyAddr}) {
+    this.sobelModule.exports.sobel(srcAddr, magAddr, gxAddr, gyAddr, width, height, stride)
+    return {magAddr, gxAddr, gyAddr}
+  }
 
+  static nonMaximumSuppression (magnitude, gx, gy, width, height, stride) {
+    const suppressed = new Float32Array(width * height)
+    const getNeighborOffset = (gxVal, gyVal) => {
+      const absGx = Math.abs(gxVal)
+      const absGy = Math.abs(gyVal)
+      if (absGy < 0.4142 * absGx) {
+        return 1
+      }
+      if (absGy > 2.4142 * absGx) {
+        return stride
+      }
+      if ((gxVal > 0 && gyVal > 0) || (gxVal < 0 && gyVal < 0)) {
+        return stride + 1
+      }
+      if (absGx > 0 || absGy > 0) {
+        return stride - 1
+      }
+      return 0
+    }
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
         const idx = y * width + x
-        const gx = (
-          -1 * data[idx - width - 1] + 1 * data[idx - width + 1] +
-          -2 * data[idx - 1] + 2 * data[idx + 1] +
-          -1 * data[idx + width - 1] + 1 * data[idx + width + 1]
-        )
-        const gy = (
-          -1 * data[idx - width - 1] - 2 * data[idx - width] - 1 * data[idx - width + 1] +
-          1 * data[idx + width - 1] + 2 * data[idx + width] + 1 * data[idx + width + 1]
-        )
-        magnitude[idx] = Math.sqrt(gx * gx + gy * gy)
-        direction[idx] = Math.atan2(gy, gx)
-      }
-    }
-    return {magnitude, direction}
-  }
+        const wasmIdx = y * stride + x
+        const gxVal = gx[wasmIdx]
+        const gyVal = gy[wasmIdx]
 
-  static nonMaximumSuppression (magnitude, direction, width, height) {
-    const suppressed = new Float32Array(magnitude.length)
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        const idx = y * width + x
-        let angle = direction[idx] * 180 / Math.PI
-        if (angle < 0) angle += 180
+        const m = magnitude[wasmIdx]
+        const offset = getNeighborOffset(gxVal, gyVal)
+        const q = offset === 0 ? 255 : magnitude[wasmIdx + offset]
+        const r = offset === 0 ? 255 : magnitude[wasmIdx - offset]
 
-        let q = 255, r = 255
-        if ((angle >= 0 && angle < 22.5) || (angle >= 157.5 && angle <= 180)) {
-          q = magnitude[idx + 1]
-          r = magnitude[idx - 1]
-        } else if (angle >= 22.5 && angle < 67.5) {
-          q = magnitude[idx + width + 1]
-          r = magnitude[idx - width - 1]
-        } else if (angle >= 67.5 && angle < 112.5) {
-          q = magnitude[idx + width]
-          r = magnitude[idx - width]
-        } else if (angle >= 112.5 && angle < 157.5) {
-          q = magnitude[idx + width - 1]
-          r = magnitude[idx - width + 1]
+        if (m >= q && m >= r) {
+          suppressed[idx] = m
         }
-
-        if (magnitude[idx] >= q && magnitude[idx] >= r) {
-          suppressed[idx] = magnitude[idx]
-        } else {
+        else {
           suppressed[idx] = 0
         }
       }
@@ -166,9 +255,11 @@ class Canny {
       if (data[i] >= high) {
         edges[i] = strong
         stack.push(i)
-      } else if (data[i] >= low) {
+      }
+      else if (data[i] >= low) {
         edges[i] = weak
-      } else {
+      }
+      else {
         edges[i] = 0
       }
     }

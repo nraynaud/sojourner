@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <title>SVG 2D Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="canny.js"></script>
+    <script type="module">
+        import Canny from './canny.js';
+        window.Canny = Canny;
+    </script>
     <style>
         body, html {
             margin: 0;
