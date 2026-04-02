@@ -483,6 +483,11 @@
       if (!skipSave) this.save()
     }
 
+    getBackgroundSize () {
+      const el = $('backgroundImage')
+      return {w: parseFloat(el.width.baseVal.value), h: parseFloat(el.height.baseVal.value)}
+    }
+
     async toggleCanny () {
       if (!this.backgroundImage) return
       this.cannyEnabled = !this.cannyEnabled
@@ -891,6 +896,7 @@
       if (this.doc.bgListItem) {
         this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
       }
+      zoomEventTarget.addEventListener('zoomed', () => this.updateHandles())
     }
 
     deactivate () {
@@ -926,6 +932,7 @@
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
   let activeMode = null
+  let zoomEventTarget = new EventTarget()
   // init the current mode listener
   setMode(SelectionIdleMode)
   doc.loadFromDB().then(() => {
@@ -947,16 +954,14 @@
     let currentZoom = getCurrentZoom()
     let postZoom = null
     let newZoom = currentZoom * factor
+    const {w, h} = doc.getBackgroundSize()
     if (factor === 0) {
       newZoom = 1
     }
     else {
       const rect = $viewport.getBoundingClientRect()
-      let minZoom = 0.1
-      if ($svg.hasAttribute('width')) {
-        const w = parseFloat($svg.getAttribute('width')), h = parseFloat($svg.getAttribute('height'))
-        minZoom = Math.min(rect.width / w, rect.height / h)
-      }
+      let minZoom = 0.01
+      minZoom = Math.min(rect.width / w, rect.height / h)
       newZoom = Math.max(minZoom, newZoom)
       if (center) {
         postZoom = () => {
@@ -968,16 +973,11 @@
     if (newZoom === currentZoom)
       return
     $zoomGroup.style.scale = `${newZoom}`
-    let $backgroundImage = $('backgroundImage')
-    if ($backgroundImage) {
-      setAttributes($svg, {
-        width: newZoom * $backgroundImage.width.baseVal.value,
-        height: newZoom * $backgroundImage.height.baseVal.value
-      })
-    }
+    setAttributes($svg, {width: newZoom * w, height: newZoom * h})
     if (postZoom)
       postZoom()
-    if (activeMode instanceof SelectionActiveMode) activeMode.updateHandles()
+    console.log('newZoom', newZoom)
+    zoomEventTarget.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
   }
 
   function setMode (ModeClass, arg) {
