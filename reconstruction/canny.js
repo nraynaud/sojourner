@@ -5,29 +5,50 @@ export default class Canny {
 
   static sobelModule = null
 
-  static async initWasm (pagesNeeded = 1) {
-    if (this.wasmModule) return
-    const wabt = await WabtModule({
-      locateFile: (url) => {
-        if (url.endsWith('.wasm')) {
-          return new URL('./lib/' + url, import.meta.url).href
-        }
-        return url
-      }
-    })
-    const [convolveWat, sobelWat] = await Promise.all([
-      fetch('./convolve.wat').then(r => r.text()),
-      fetch('./sobel.wat').then(r => r.text())
-    ])
+  static initPromise = null
 
-    this.wasmMemory = new WebAssembly.Memory({initial: pagesNeeded})
-    let importObject = {env: {memory: this.wasmMemory}}
-    const compile = async (filname, text) => {
-      const module = wabt.parseWat(filname, text, {relaxed_simd: true})
-      return (await WebAssembly.instantiate(module.toBinary().buffer, importObject)).instance
+  static async initWasm (pagesNeeded = 1) {
+    if (this.wasmModule && this.wasmMemory.buffer.byteLength >= pagesNeeded * 65536) return
+    if (this.initPromise) return this.initPromise
+
+    this.initPromise = (async () => {
+      const wabt = await WabtModule({
+        locateFile: (url) => {
+          if (url.endsWith('.wasm')) {
+            return new URL('./lib/' + url, import.meta.url).href
+          }
+          return url
+        }
+      })
+      const [convolveWat, sobelWat] = await Promise.all([
+        fetch(new URL('./convolve.wat', import.meta.url).href).then(r => r.text()),
+        fetch(new URL('./sobel.wat', import.meta.url).href).then(r => r.text())
+      ])
+
+      this.wasmMemory = new WebAssembly.Memory({initial: pagesNeeded})
+      let importObject = {env: {memory: this.wasmMemory}}
+      const compile = async (filename, text) => {
+        try {
+          const module = wabt.parseWat(filename, text, {relaxed_simd: true})
+          const binary = module.toBinary({})
+          const instancePromise = WebAssembly.instantiate(binary.buffer, importObject)
+          module.destroy()
+          const {instance} = await instancePromise
+          return instance
+        } catch (e) {
+          console.error(`Error compiling ${filename}:`, e)
+          throw e
+        }
+      }
+      this.wasmModule = await compile('convolve.wat', convolveWat)
+      this.sobelModule = await compile('sobel.wat', sobelWat)
+    })()
+
+    try {
+      await this.initPromise
+    } finally {
+      this.initPromise = null
     }
-    this.wasmModule = await compile('convolve.wat', convolveWat)
-    this.sobelModule = await compile('sobel.wat', sobelWat)
   }
 
   /**

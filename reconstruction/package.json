@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "qunit": "^2.25.0"
+  },
+  "scripts": {
+    "test": "playwright test"
+  },
+  "type": "module"
+}

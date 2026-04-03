@@ -1,4 +1,4 @@
-import Canny from './canny.js'
+import Canny from '../canny.js'
 
 async function showInCanvas (canvasElement, imageData) {
   canvasElement.style.backgroundColor = '#000'
@@ -248,7 +248,7 @@ QUnit.module('Canny Edge Detector', function () {
   QUnit.test('process should return ImageData with edges', async function (assert) {
     // We'll use a mock since we can't easily create a real ImageData in some environments without a DOM
     // In many browser-based environments, ImageData is available, but if we're in a pure Node environment it might not be.
-    // However, the test runner tests.html is designed for a browser environment.
+    // However, the test runner test.html is designed for a browser environment.
 
     // Check if ImageData is available
     if (typeof ImageData === 'undefined') {
