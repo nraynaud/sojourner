@@ -218,6 +218,8 @@
     <button id="zoom-reset-btn" onclick="zoom(0)">Reset Zoom</button>
     <button id="bg-btn" onclick="$('bg-input').click()">Set Background</button>
     <input type="file" id="bg-input" accept="image/*" style="display: none;" onchange="handleBgChange(event)">
+    <button id="undo-btn" onclick="doc.undo()">Undo</button>
+    <button id="redo-btn" onclick="doc.redo()">Redo</button>
     <button id="save-btn" onclick="doc.saveToFile()">Save (Zip)</button>
     <button id="load-btn" onclick="$('load-input').click()">Load (Zip)</button>
     <input type="file" id="load-input" accept=".zip" style="display: none;" onchange="handleLoadFile(event)">
@@ -461,11 +463,43 @@
         backgroundGroup: $('background-group'),
         shapesGroup: $('shapes-group'),
         entityList: $('entity-list'),
-        svg: $('svg-canvas')
+        svg: $('svg-canvas'),
+        undoStack: [],
+        redoStack: []
       })
     }
 
+    pushState () {
+      this.undoStack.push(this.getState())
+      this.redoStack = []
+      if (this.undoStack.length > 50) this.undoStack.shift()
+    }
+
+    getState () {
+      return {
+        entities: this.entities.map(s => s.toJSON()),
+        entityCount: this.entityCount,
+        backgroundImage: this.backgroundImage,
+        backgroundName: this.backgroundName
+      }
+    }
+
+    undo () {
+      if (this.undoStack.length === 0) return
+      this.redoStack.push(this.getState())
+      this._applyData(this.undoStack.pop(), true)
+      this.dispatchEvent(new CustomEvent('stateChanged'))
+    }
+
+    redo () {
+      if (this.redoStack.length === 0) return
+      this.undoStack.push(this.getState())
+      this._applyData(this.redoStack.pop(), true)
+      this.dispatchEvent(new CustomEvent('stateChanged'))
+    }
+
     setBackground (blob, name, skipSave = false) {
+      if (!skipSave) this.pushState()
       if (this.bgObjectURL) URL.revokeObjectURL(this.bgObjectURL)
       if (this.cannyObjectURL) URL.revokeObjectURL(this.cannyObjectURL)
       Object.assign(this, {backgroundImage: blob, backgroundName: name, cannyEnabled: false})
@@ -549,6 +583,7 @@
     }
 
     addShape (shape, skipSave = false) {
+      if (!skipSave) this.pushState()
       this.entities.push(shape)
       this.addEntityItem(shape)
       shape.el.addEventListener('click', (e) => {
@@ -574,9 +609,16 @@
         this.removeShape(shape)
       }
       const finish = () => {
-        shape.name = label.textContent = input.value.trim() || id
-        item.classList.remove('editing')
-        this.save()
+        const newName = input.value.trim() || id
+        if (newName !== (shape.name || id)) {
+          this.pushState()
+          shape.name = label.textContent = newName
+          item.classList.remove('editing')
+          this.save()
+        }
+        else {
+          item.classList.remove('editing')
+        }
       }
       input.onkeydown = (e) => {
         if (e.key === 'Enter') finish()
@@ -605,6 +647,7 @@
     }
 
     removeShape (shape) {
+      this.pushState()
       this.entities = this.entities.filter(s => s !== shape)
       const item = this.entityItemsMap.get(shape)
       if (item) {
@@ -662,7 +705,7 @@
       if (d) this._applyData(d)
     }
 
-    _applyData (d) {
+    _applyData (d, skipPushState = false) {
       Object.assign(this, {
         entities: [],
         entityCount: d.entityCount || 0,
@@ -671,6 +714,13 @@
       this.shapesGroup.innerHTML = this.entityList.innerHTML = ''
       this.entityItemsMap.clear()
       if (d.backgroundImage) this.setBackground(d.backgroundImage, d.backgroundName, true)
+      else {
+        this.backgroundImage = null
+        this.backgroundName = null
+        this.backgroundGroup.innerHTML = ''
+        this.svg.removeAttribute('width')
+        this.svg.removeAttribute('height')
+      }
       if (d.entities) d.entities.forEach(ent => {
         const s = ent.type === 'rect' ? new RectangleShape(ent.id, null, 0) : new EllipseShape(ent.id, null, 0)
         s.name = ent.name
@@ -821,6 +871,7 @@
 
     rotateHandleMousedown (e) {
       e.stopPropagation()
+      this.doc.pushState()
       this.isRotating = true
       document.body.style.cursor = 'grabbing'
       const pos = getMousePos(e, $zoomGroup), c = this.selectedElement.getCenter()
@@ -830,6 +881,7 @@
 
     resizeHandleMousedown (e) {
       e.stopPropagation()
+      this.doc.pushState()
       this.isResizing = true
       this.resizeDir = e.currentTarget.getAttribute('data-dir')
       document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
@@ -869,9 +921,11 @@
 
     _up (_e) {
       if (this.isRotating || this.isResizing) {
+        if (this.selectedElement) {
+          this.doc.save()
+        }
         this.isRotating = this.isResizing = false
         document.body.style.cursor = ''
-        if (this.selectedElement) this.doc.save()
       }
     }
 
@@ -888,6 +942,14 @@
       this.listen(this.doc, 'deleteShape', (e) => {
         if (e.detail.shape === this.selectedElement) transitionToSelect()
       })
+      this.listen(this.doc, 'stateChanged', () => {
+        const s_ = this.doc.entities.find(e => e.id === this.selectedElement.id)
+        if (s_) {
+          this.selectedElement = s_
+          this.updateHandles()
+        }
+        else transitionToSelect()
+      })
       this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => this.rotateHandleMousedown(e))
       this.handles.querySelectorAll('.handle').forEach(h => {
         this.listen(h, 'mousedown', (e) => this.resizeHandleMousedown(e))
@@ -896,7 +958,7 @@
       if (this.doc.bgListItem) {
         this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
       }
-      zoomEventTarget.addEventListener('zoomed', () => this.updateHandles())
+      this.listen(zoomEventTarget, 'zoomed', () => this.updateHandles())
     }
 
     deactivate () {
@@ -946,6 +1008,18 @@
     }
   }, {passive: false})
 
+  window.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault()
+      if (e.shiftKey) doc.redo()
+      else doc.undo()
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+      e.preventDefault()
+      doc.redo()
+    }
+  })
+
   function getCurrentZoom () {
     return parseFloat($zoomGroup.style.scale) || 1
   }
@@ -976,7 +1050,6 @@
     setAttributes($svg, {width: newZoom * w, height: newZoom * h})
     if (postZoom)
       postZoom()
-    console.log('newZoom', newZoom)
     zoomEventTarget.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
   }
 
