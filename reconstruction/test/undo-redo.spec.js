@@ -35,17 +35,19 @@ test.describe('Undo/Redo test', () => {
 
     // Verify rectangle added
     await expect(shapesGroup.locator('rect')).toHaveCount(1)
-    await expect(entityList.locator('.entity-item')).toHaveCount(1)
+    // There should be 2 items: 1 background and 1 rectangle
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
 
     // Undo addition
     await page.click('#undo-btn')
     await expect(shapesGroup.locator('rect')).toHaveCount(0)
-    await expect(entityList.locator('.entity-item')).toHaveCount(0)
+    // Only background should remain
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
 
     // Redo addition
     await page.click('#redo-btn')
     await expect(shapesGroup.locator('rect')).toHaveCount(1)
-    await expect(entityList.locator('.entity-item')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
   })
 
   test('Undo/Redo shape deletion', async ({page}) => {
@@ -63,9 +65,10 @@ test.describe('Undo/Redo test', () => {
 
     await expect(shapesGroup.locator('rect')).toHaveCount(1)
 
-    // Delete the rectangle
-    await entityList.locator('.entity-item').hover()
-    await page.click('.delete-btn')
+    // Delete the rectangle. We need to be specific because of the background item.
+    const rectItem = entityList.locator('.entity-item').filter({ hasText: 'Rectangle 1' })
+    await rectItem.hover()
+    await rectItem.locator('.delete-btn').click()
 
     await expect(shapesGroup.locator('rect')).toHaveCount(0)
 
@@ -153,7 +156,7 @@ test.describe('Undo/Redo test', () => {
     await page.mouse.move(box.x + 150, box.y + 150)
     await page.mouse.up()
 
-    const entityItem = entityList.locator('.entity-item')
+    const entityItem = entityList.locator('.entity-item').filter({ hasNotText: 'Background:' })
     const label = entityItem.locator('.name-label')
     const initialName = await label.textContent()
 
