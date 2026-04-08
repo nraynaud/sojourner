@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Zoom function tests', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({page}) => {
     await page.goto('/')
     // Ensure the page is ready
     await expect(page.locator('#svg-canvas')).toBeVisible()
@@ -18,9 +18,9 @@ test.describe('Zoom function tests', () => {
     await expect(page.locator('#svg-canvas')).toBeVisible()
   })
 
-  test('Zoom in and out using buttons', async ({ page }) => {
+  test('Zoom in and out using buttons', async ({page}) => {
     const zoomGroup = page.locator('#zoom-group')
-    
+
     // Initial scale should be 1 or empty (defaulting to 1)
     let initialScale = await zoomGroup.evaluate(el => el.style.scale || '1')
     expect(parseFloat(initialScale)).toBe(1)
@@ -36,13 +36,13 @@ test.describe('Zoom function tests', () => {
     expect(parseFloat(zoomOutScale)).toBeCloseTo(1.1 * 0.9)
   })
 
-  test('Reset zoom button', async ({ page }) => {
+  test('Reset zoom button', async ({page}) => {
     const zoomGroup = page.locator('#zoom-group')
-    
+
     // Zoom in a few times
     await page.click('#zoom-in-btn')
     await page.click('#zoom-in-btn')
-    
+
     let currentScale = await zoomGroup.evaluate(el => el.style.scale)
     expect(parseFloat(currentScale)).toBeGreaterThan(1.2)
 
@@ -52,7 +52,7 @@ test.describe('Zoom function tests', () => {
     expect(parseFloat(resetScale)).toBe(1)
   })
 
-  test('Zoom using mouse wheel', async ({ page }) => {
+  test('Zoom using mouse wheel', async ({page}) => {
     const zoomGroup = page.locator('#zoom-group')
     const viewport = page.locator('#canvas-container')
 
@@ -65,13 +65,13 @@ test.describe('Zoom function tests', () => {
     // so we use page.evaluate to dispatch a real WheelEvent if needed, or mouse.wheel if it works.
     await viewport.hover()
     await page.mouse.wheel(0, -100) // Scroll up
-    
+
     // Check if zoom changed. Note: e.ctrlKey is required in the app's wheel listener.
     // page.mouse.wheel might not set ctrlKey.
-    
+
     // Re-verify the listener in index.html:
     // $viewport.addEventListener('wheel', e => { if (e.ctrlKey) { ... } }, {passive: false})
-    
+
     // Let's use page.evaluate to be sure
     await page.evaluate(() => {
       const viewport = document.getElementById('canvas-container')
@@ -102,25 +102,25 @@ test.describe('Zoom function tests', () => {
     expect(parseFloat(wheelZoomOutScale)).toBeCloseTo(1.05 * 0.95)
   })
 
-  test('Zoom with background size consideration', async ({ page }) => {
+  test('Zoom with background size consideration', async ({page}) => {
     // This test verifies that the svg-canvas size changes with zoom
     // Since there's no background by default, doc.getBackgroundSize() might return default 100x100 or something.
-    
+
     const svgCanvas = page.locator('#svg-canvas')
-    
+
     const initialWidth = await svgCanvas.getAttribute('width')
     const initialHeight = await svgCanvas.getAttribute('height')
-    
+
     await page.click('#zoom-in-btn')
-    
+
     const zoomedWidth = await svgCanvas.getAttribute('width')
     const zoomedHeight = await svgCanvas.getAttribute('height')
-    
+
     if (initialWidth && zoomedWidth) {
-        expect(parseFloat(zoomedWidth)).toBeCloseTo(parseFloat(initialWidth) * 1.1)
+      expect(parseFloat(zoomedWidth)).toBeCloseTo(parseFloat(initialWidth) * 1.1)
     }
     if (initialHeight && zoomedHeight) {
-        expect(parseFloat(zoomedHeight)).toBeCloseTo(parseFloat(initialHeight) * 1.1)
+      expect(parseFloat(zoomedHeight)).toBeCloseTo(parseFloat(initialHeight) * 1.1)
     }
   })
 })

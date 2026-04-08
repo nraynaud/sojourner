@@ -194,6 +194,18 @@
             cursor: grab;
         }
 
+        .ellipse-handle {
+            cursor: pointer;
+        }
+
+        .ellipse-handle[data-ellipse-dir="n"], .ellipse-handle[data-ellipse-dir="s"] {
+            cursor: ns-resize;
+        }
+
+        .ellipse-handle[data-ellipse-dir="e"], .ellipse-handle[data-ellipse-dir="w"] {
+            cursor: ew-resize;
+        }
+
         .rotate-handle:active {
             cursor: grabbing;
         }
@@ -206,7 +218,7 @@
             pointer-events: none;
         }
 
-        #handles-group .handle, #handles-group .rotate-handle {
+        #handles-group .handle, #handles-group .rotate-handle, #handles-group .ellipse-handle {
             pointer-events: all;
         }
 
@@ -218,20 +230,20 @@
 <body>
 
 <div id="toolbar">
-    <button id="rect-btn" onclick="setMode(DrawRectangleMode)">Rectangle</button>
-    <button id="ellipse-btn" onclick="setMode(DrawEllipseMode)">Ellipse</button>
-    <button id="select-btn" onclick="transitionToSelect()">Select</button>
-    <button id="zoom-in-btn" onclick="zoom(1.1)">Zoom +</button>
-    <button id="zoom-out-btn" onclick="zoom(0.9)">Zoom -</button>
-    <button id="zoom-reset-btn" onclick="zoom(0)">Reset Zoom</button>
-    <button id="bg-btn" onclick="$('bg-input').click()">Set Background</button>
+    <button id="rect-btn">Rectangle</button>
+    <button id="ellipse-btn">Ellipse</button>
+    <button id="select-btn">Select</button>
+    <button id="zoom-in-btn">Zoom +</button>
+    <button id="zoom-out-btn">Zoom -</button>
+    <button id="zoom-reset-btn">Reset Zoom</button>
+    <button id="bg-btn">Set Background</button>
     <input type="file" id="bg-input" accept="image/*" style="display: none;" onchange="handleBgChange(event)">
-    <button id="undo-btn" onclick="doc.undo()">Undo</button>
-    <button id="redo-btn" onclick="doc.redo()">Redo</button>
-    <button id="save-btn" onclick="doc.saveToFile()">Save (Zip)</button>
-    <button id="load-btn" onclick="$('load-input').click()">Load (Zip)</button>
+    <button id="undo-btn">Undo</button>
+    <button id="redo-btn">Redo</button>
+    <button id="save-btn">Save (Zip)</button>
+    <button id="load-btn">Load (Zip)</button>
     <input type="file" id="load-input" accept=".zip" style="display: none;" onchange="handleLoadFile(event)">
-    <button id="canny-btn" onclick="toggleCanny()">Canny</button>
+    <button id="canny-btn">Canny</button>
     <span id="status">Mode: Rectangle</span>
 </div>
 
@@ -266,6 +278,11 @@
                 <use class="handle" data-dir="w" x="0" y="0" href="#handle-icon"/>
                 <!-- Rotate handle -->
                 <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
+                <!-- Ellipse curve handles -->
+                <use class="ellipse-handle" data-ellipse-dir="n" x="0" y="0" href="#handle-icon"/>
+                <use class="ellipse-handle" data-ellipse-dir="e" x="0" y="0" href="#handle-icon"/>
+                <use class="ellipse-handle" data-ellipse-dir="s" x="0" y="0" href="#handle-icon"/>
+                <use class="ellipse-handle" data-ellipse-dir="w" x="0" y="0" href="#handle-icon"/>
                 <line id="rotate-line" stroke="#28a745" stroke-width="1"/>
             </g>
         </svg>
@@ -308,161 +325,11 @@
     return {x: (evt.clientX - c.e) / c.a, y: (evt.clientY - c.f) / c.d}
   }
 </script>
-<script>
-  class Shape {
-    constructor (el) {
-      this.el = el
-      this.id = el.id
-    }
-
-    get name () { return this.el.getAttribute('data-name') }
-
-    set name (val) { this.el.setAttribute('data-name', val) }
-
-    setAttributes (attrs) {
-      for (let k in attrs) this.el.setAttribute(k, attrs[k])
-    }
-
-    getCenter () {
-      const x = parseFloat(this.el.getAttribute('x')), y = parseFloat(this.el.getAttribute('y')),
-        w = parseFloat(this.el.getAttribute('width')), h = parseFloat(this.el.getAttribute('height'))
-      return {x: x + w / 2, y: y + h / 2}
-    }
-
-    getLocalBBox () { return this.getInitialRect() }
-
-    getRotation () {
-      const t = this.el.getAttribute('transform')
-      return t && t.match(/rotate\(([^, ]+)/) ? parseFloat(t.match(/rotate\(([^, ]+)/)[1]) : 0
-    }
-
-    setTransform (rot, cx, cy) { this.setAttributes({transform: `rotate(${rot}, ${cx}, ${cy})`}) }
-
-    getAttributes () { throw 'getAttributes must be implemented' }
-
-    getInitialRect () { throw 'getInitialRect must be implemented' }
-
-    updateResize (rect, lDx, lDy, dir) { throw 'updateResize must be implemented' }
-
-    toJSON () {
-      return {
-        type: this instanceof RectangleShape ? 'rect' : 'ellipse',
-        id: this.id, name: this.name, transform: this.el.getAttribute('transform'), attributes: this.getAttributes()
-      }
-    }
-  }
-
-  class RectangleShape extends Shape {
-    constructor (id, start, label) {
-      const el = createNS('rect')
-      Object.assign(el, {id})
-      setAttributes(el, {
-        x: start ? start.x : 0,
-        y: start ? start.y : 0,
-        width: 0,
-        height: 0,
-        'data-name': `Rectangle ${label}`,
-        class: 'shape'
-      })
-      super(el)
-    }
-
-    getAttributes () {
-      return {
-        x: this.el.getAttribute('x'),
-        y: this.el.getAttribute('y'),
-        width: this.el.getAttribute('width'),
-        height: this.el.getAttribute('height')
-      }
-    }
-
-    getInitialRect () {
-      return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
-    }
-
-    updateResize (r, lDx, lDy, dir) {
-      let x = r.x, y = r.y, w = r.width, h = r.height
-      if (dir.includes('e')) w += lDx
-      if (dir.includes('s')) h += lDy
-      if (dir.includes('w')) {
-        x += lDx
-        w -= lDx
-      }
-      if (dir.includes('n')) {
-        y += lDy
-        h -= lDy
-      }
-      if (w < 0) {
-        x += w
-        w = Math.abs(w)
-      }
-      if (h < 0) {
-        y += h
-        h = Math.abs(h)
-      }
-      this.setAttributes({x, y, width: w, height: h})
-    }
-  }
-
-  class EllipseShape extends Shape {
-    constructor (id, start, count) {
-      const el = createNS('ellipse')
-      Object.assign(el, {id})
-      setAttributes(el, {
-        cx: start ? start.x : 0,
-        cy: start ? start.y : 0,
-        rx: 0,
-        ry: 0,
-        'data-name': `Ellipse ${count}`,
-        class: 'shape'
-      })
-      super(el)
-    }
-
-    getAttributes () {
-      return {
-        cx: this.el.getAttribute('cx'),
-        cy: this.el.getAttribute('cy'),
-        rx: this.el.getAttribute('rx'),
-        ry: this.el.getAttribute('ry')
-      }
-    }
-
-    getCenter () { return {x: parseFloat(this.el.getAttribute('cx')), y: parseFloat(this.el.getAttribute('cy'))} }
-
-    getLocalBBox () {
-      const r = this.getInitialRect()
-      return {x: r.cx - r.rx, y: r.cy - r.ry, width: 2 * r.rx, height: 2 * r.ry}
-    }
-
-    getInitialRect () {
-      return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
-    }
-
-    updateResize (r, lDx, lDy, dir) {
-      let rx = r.rx, ry = r.ry, cx = r.cx, cy = r.cy
-      if (dir.includes('e')) {
-        rx += lDx / 2
-        cx += lDx / 2
-      }
-      if (dir.includes('w')) {
-        rx -= lDx / 2
-        cx += lDx / 2
-      }
-      if (dir.includes('s')) {
-        ry += lDy / 2
-        cy += lDy / 2
-      }
-      if (dir.includes('n')) {
-        ry -= lDy / 2
-        cy += lDy / 2
-      }
-      this.setAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
-    }
-  }
-
-  class Document extends EventTarget {
-    constructor () {
+<script type="module" src="shapes.js"></script>
+<script type="module" src="modes.js"></script>
+<script type="module">
+  export class ReconstructionDocument extends EventTarget {
+    constructor (window) {
       super()
       Object.assign(this, {
         entities: [],
@@ -473,7 +340,8 @@
         entityList: $('entity-list'),
         svg: $('svg-canvas'),
         undoStack: [],
-        redoStack: []
+        redoStack: [],
+        window
       })
     }
 
@@ -561,12 +429,16 @@
       const url = this.cannyEnabled ? this.cannyObjectURL : this.bgObjectURL
       setAttributes(img, {href: url, id: 'backgroundImage'})
       tempImg.onload = () => {
-        const zoom = getCurrentZoom()
+        const zoom = this.getCurrentZoom()
         setAttributes(img, {width: tempImg.naturalWidth, height: tempImg.naturalHeight})
         setAttributes(this.svg, {width: tempImg.naturalWidth * zoom, height: tempImg.naturalHeight * zoom})
       }
       tempImg.src = url
       this.backgroundGroup.appendChild(img)
+    }
+
+    getCurrentZoom () {
+      return getCurrentZoom()
     }
 
     updateBgListItem () {
@@ -753,13 +625,13 @@
       this.listeners.push({target, type, fn, opts})
     }
 
-    activate () {
+    activate (holder) {
       if (this.activationSelector)
         $(this.activationSelector).classList.toggle('active', true)
       let $status = $('status')
       if ($status) $status.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
       this.svg.classList.add(this.name)
-      this.listen(this.doc, 'sidebarShapeClick', (e) => transitionToSelect(e.detail.shape))
+      this.listen(this.doc, 'sidebarShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
     }
 
     deactivate () {
@@ -771,248 +643,47 @@
     }
   }
 
-  class BaseDrawingMode extends Mode {
-    constructor (doc, name, svg) {
-      super(doc, name, svg)
-      Object.assign(this, {startPoint: {x: 0, y: 0}, currentElement: null})
+  class ActiveModeHolder extends EventTarget {
+    activeMode = null
+
+    constructor (doc, $svg) {
+      super()
+      this.doc = doc
+      this.$svg = $svg
+      this.setMode(SelectionIdleMode)
     }
 
-    activate () {
-      super.activate()
-      this.listen(this.svg, 'mousedown', e => this.onMouseDown(e))
+    setMode (ModeClass, arg) {
+      if (this.activeMode) this.activeMode.deactivate()
+      this.activeMode = new ModeClass(this.doc, this.$svg, $zoomGroup, arg)
+      this.activeMode.addEventListener('modeTransition', e => {
+        console.log('modeTransition', e)
+        invokeLater(() => {this.setMode(e.detail.newMode, e.detail.arg)})
+      }, {once: true})
+      if (this.activeMode) {
+        this.activeMode.activate(this)
+      }
     }
 
-    onMouseDown (e) {
-      if (e.button !== 0) return
-      const pos = getMousePos(e, $zoomGroup)
-      this.startPoint = pos
-      this.doc.entityCount++
-      this.currentElement = this.createShape(`entity-${this.doc.entityCount}`, pos, this.doc.entityCount)
-      this.doc.shapesGroup.appendChild(this.currentElement.el)
-      this.doc.addShape(this.currentElement)
-      this.listen(window, 'mousemove', this._move = e => this.onMouseMove(e))
-      this.listen(window, 'mouseup', this._up = e => this.onMouseUp(e))
-    }
-
-    onMouseMove (e) { this.updateShape(getMousePos(e, $zoomGroup)) }
-
-    onMouseUp (_e) {
-      const el = this.currentElement
-      this.doc.save()
-      dispatchCustom(this, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
+    transitionToSelect (el) {
+      if (el) dispatchCustom(this.activeMode, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
+      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: SelectionIdleMode})
     }
   }
 
-  class DrawRectangleMode extends BaseDrawingMode {
-    constructor (doc, svg) {
-      super(doc, 'rect', svg)
-      this.activationSelector = 'rect-btn'
-    }
-
-    createShape (id, start, label) { return new RectangleShape(id, start, label) }
-
-    updateShape (pos) {
-      const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
-      this.currentElement.setAttributes({
-        x: w < 0 ? pos.x : this.startPoint.x,
-        width: Math.abs(w),
-        y: h < 0 ? pos.y : this.startPoint.y,
-        height: Math.abs(h)
-      })
-    }
-  }
-
-  class DrawEllipseMode extends BaseDrawingMode {
-    constructor (doc, svg) {
-      super(doc, 'ellipse', svg)
-      this.activationSelector = 'ellipse-btn'
-    }
-
-    createShape (id, start, count) { return new EllipseShape(id, start, count) }
-
-    updateShape (pos) {
-      const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
-      this.currentElement.setAttributes({
-        cx: this.startPoint.x + w / 2,
-        cy: this.startPoint.y + h / 2,
-        rx: Math.abs(w) / 2,
-        ry: Math.abs(h) / 2
-      })
-    }
-  }
-
-  class SelectionIdleMode extends Mode {
-    constructor (doc, svg) {
-      super(doc, 'select', svg)
-      this.activationSelector = 'select-btn'
-    }
-
-    activate () {
-      super.activate()
-      this.doc.updateSelection(null)
-      $('handles-group').style.visibility = 'hidden'
-      this.listen(this.svg, 'mousedown', (e) => {
-        if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
-          transitionToSelect()
-        }
-      })
-      this.listen(this.doc, 'canvasShapeClick', (e) => transitionToSelect(e.detail.shape))
-      if (this.doc.bgListItem) {
-        this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
-      }
-    }
-  }
-
-  class SelectionActiveMode extends Mode {
-    constructor (doc, svg, selectedElement, handles = $('handles-group')) {
-      super(doc, 'select', svg)
-      Object.assign(this, {
-        selectedElement,
-        isRotating: false,
-        isResizing: false,
-        startPoint: {x: 0, y: 0},
-        initialRotation: 0,
-        startAngle: 0,
-        handles,
-        activationSelector: 'select-btn'
-      })
-    }
-
-    rotateHandleMousedown (e) {
-      e.stopPropagation()
-      this.doc.pushState()
-      this.isRotating = true
-      document.body.style.cursor = 'grabbing'
-      const pos = getMousePos(e, $zoomGroup), c = this.selectedElement.getCenter()
-      this.initialRotation = this.selectedElement.getRotation()
-      this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
-    }
-
-    resizeHandleMousedown (e) {
-      e.stopPropagation()
-      this.doc.pushState()
-      this.isResizing = true
-      this.resizeDir = e.currentTarget.getAttribute('data-dir')
-      document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
-      this.startPoint = getMousePos(e, $zoomGroup)
-      this.initialRect = this.selectedElement.getInitialRect()
-    }
-
-    _keyHandler (e) {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.entity-item.editing')) {
-        this.doc.removeShape(this.selectedElement)
-      }
-    }
-
-    _down (e) {
-      if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
-        transitionToSelect()
-      }
-    }
-
-    _move (e) {
-      const pos = getMousePos(e, $zoomGroup), s = this.selectedElement
-      if (this.isRotating && s) {
-        const c = s.getCenter(),
-          rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
-        s.setTransform(rot, c.x, c.y)
-        this.updateHandles()
-      }
-      else if (this.isResizing && s) {
-        const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
-          dy = pos.y - this.startPoint.y
-        s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
-        const c = s.getCenter()
-        s.setTransform(rot, c.x, c.y)
-        this.updateHandles()
-      }
-    }
-
-    _up (_e) {
-      if (this.isRotating || this.isResizing) {
-        if (this.selectedElement) {
-          this.doc.save()
-        }
-        this.isRotating = this.isResizing = false
-        document.body.style.cursor = ''
-      }
-    }
-
-    activate () {
-      super.activate()
-      const s = this.selectedElement
-      s.el.classList.add('selected')
-      this.updateHandles()
-      this.doc.updateSelection(s)
-      this.listen(this.svg, 'mousedown', (e) => this._down(e))
-      this.listen(window, 'mousemove', (e) => this._move(e))
-      this.listen(window, 'mouseup', (e) => this._up(e))
-      this.listen(window, 'keydown', (e) => this._keyHandler(e))
-      this.listen(this.doc, 'deleteShape', (e) => {
-        if (e.detail.shape === this.selectedElement) transitionToSelect()
-      })
-      this.listen(this.doc, 'stateChanged', () => {
-        const s_ = this.doc.entities.find(e => e.id === this.selectedElement.id)
-        if (s_) {
-          this.selectedElement = s_
-          this.updateHandles()
-        }
-        else transitionToSelect()
-      })
-      this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => this.rotateHandleMousedown(e))
-      this.handles.querySelectorAll('.handle').forEach(h => {
-        this.listen(h, 'mousedown', (e) => this.resizeHandleMousedown(e))
-      })
-      this.listen(this.doc, 'canvasShapeClick', (e) => transitionToSelect(e.detail.shape))
-      if (this.doc.bgListItem) {
-        this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
-      }
-      this.listen(zoomEventTarget, 'zoomed', () => this.updateHandles())
-    }
-
-    deactivate () {
-      if (this.selectedElement) this.selectedElement.el.classList.remove('selected')
-      super.deactivate()
-    }
-
-    updateHandles () {
-      const s = this.selectedElement, b = s.getLocalBBox(), rot = s.getRotation(), c = s.getCenter(),
-        hg = this.handles
-      hg.style.visibility = 'visible'
-      const z = getCurrentZoom()
-      const cz = {x: c.x * z, y: c.y * z}
-      hg.setAttribute('transform', `rotate(${rot}, ${cz.x}, ${cz.y})`)
-      const x = b.x * z, y = b.y * z, w = b.width * z, h = b.height * z
-      const p = {
-        nw: {x: x, y: y}, n: {x: x + w / 2, y: y}, ne: {x: x + w, y: y}, e: {x: x + w, y: y + h / 2},
-        se: {x: x + w, y: y + h}, s: {x: x + w / 2, y: y + h}, sw: {x: x, y: y + h}, w: {x: x, y: y + h / 2}
-      }
-      hg.querySelectorAll('.handle').forEach(h => {
-        const p_ = p[h.getAttribute('data-dir')]
-        setAttributes(h, {x: p_.x, y: p_.y})
-      })
-      const rh = hg.querySelector('.rotate-handle'), rl = $('rotate-line'), gap = 20
-      setAttributes(rh, {x: x + w / 2, y: y - gap})
-      setAttributes(rl, {x1: x + w / 2, y1: y, x2: x + w / 2, y2: y - gap, 'stroke-width': 1})
-    }
-  }
-</script>
-<script>
-  let doc = new Document()
+  console.log('Script loaded')
+  let doc = new ReconstructionDocument(window)
   let $svg = $('svg-canvas')
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
-  let activeMode = null
-  let zoomEventTarget = new EventTarget()
-  // init the current mode listener
-  setMode(SelectionIdleMode)
+  let activeMode = new ActiveModeHolder(doc, $svg)
+
   doc.loadFromDB().then(async () => {
     if (!doc.backgroundImage) {
       const response = await fetch('default-bg.jpg')
       const blob = await response.blob()
       doc.setBackground(blob, 'default-bg.jpg')
     }
-    transitionToSelect()
     window.addEventListener('beforeunload', () => doc.save())
   })
   $viewport.addEventListener('wheel', e => {
@@ -1034,48 +705,11 @@
     }
   })
 
-  // Pinch zoom logic for global font size
-  let lastTouchDistance = null
-  let currentFontSize = 16
-
-  window.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      lastTouchDistance = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      )
-    }
-  }, {passive: false})
-
-  window.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && lastTouchDistance !== null) {
-      // Check if pinching outside the SVG.
-      const isInsideSVG = e.target.closest('#svg-canvas')
-      if (!isInsideSVG) {
-        const distance = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        )
-        const factor = distance / lastTouchDistance
-        currentFontSize = Math.min(Math.max(10, currentFontSize * factor), 40)
-        document.documentElement.style.setProperty('--base-font-size', `${currentFontSize}px`)
-        lastTouchDistance = distance
-        e.preventDefault()
-      }
-    }
-  }, {passive: false})
-
-  window.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      lastTouchDistance = null
-    }
-  })
-
-  function getCurrentZoom () {
+  export function getCurrentZoom () {
     return parseFloat($zoomGroup.style.scale) || 1
   }
 
-  function zoom (factor, center) {
+  export function zoom (factor, center) {
     let currentZoom = getCurrentZoom()
     let postZoom = null
     let newZoom = currentZoom * factor
@@ -1085,7 +719,7 @@
     }
     else {
       const rect = $viewport.getBoundingClientRect()
-      let minZoom = 0.01
+      let minZoom
       minZoom = Math.min(rect.width / w, rect.height / h)
       newZoom = Math.max(minZoom, newZoom)
       if (center) {
@@ -1101,24 +735,7 @@
     setAttributes($svg, {width: newZoom * w, height: newZoom * h})
     if (postZoom)
       postZoom()
-    zoomEventTarget.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
-  }
-
-  function setMode (ModeClass, arg) {
-    if (activeMode) activeMode.deactivate()
-    activeMode = new ModeClass(doc, $svg, arg)
-    activeMode.addEventListener('modeTransition', e => {
-      console.log('modeTransition', e)
-      invokeLater(() => {setMode(e.detail.newMode, e.detail.arg)})
-    }, {once: true})
-    if (activeMode) {
-      activeMode.activate()
-    }
-  }
-
-  function transitionToSelect (el) {
-    if (el) dispatchCustom(activeMode, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
-    else dispatchCustom(activeMode, 'modeTransition', {newMode: SelectionIdleMode})
+    doc.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
   }
 
   function handleBgChange (e) {
@@ -1134,6 +751,27 @@
 
   function toggleCanny () {
     doc.toggleCanny()
+  }
+
+  /*
+
+   */
+  const clickHandlers = {
+    'rect-btn': () => activeMode.setMode(DrawRectangleMode),
+    'ellipse-btn': () => activeMode.setMode(DrawEllipseMode),
+    'select-btn': () => activeMode.setMode(SelectionIdleMode),
+    'zoom-in-btn': () => zoom(1.1),
+    'zoom-out-btn': () => zoom(0.9),
+    'zoom-reset-btn': () => zoom(0),
+    'undo-btn': () => doc.undo(),
+    'redo-btn': () => doc.redo(),
+    'save-btn': () => doc.saveToFile(),
+    'load-btn': () => $('load-input').click(),
+    "canny-btn": toggleCanny,
+
+  }
+  for (const [id, handler] of Object.entries(clickHandlers)) {
+    $(id).addEventListener('click', handler)
   }
 </script>
 </body>
