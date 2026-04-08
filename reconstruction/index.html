@@ -434,8 +434,7 @@
 
   doc.loadFromDB().then(async () => {
     if (!doc.backgroundImage) {
-      const response = await fetch('default-bg.jpg')
-      const blob = await response.blob()
+      const blob = await (await fetch('images/default-bg.jpg')).blob()
       doc.setBackground(blob, 'default-bg.jpg')
     }
     window.addEventListener('beforeunload', () => doc.save())

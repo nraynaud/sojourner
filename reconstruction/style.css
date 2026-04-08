@@ -133,11 +133,11 @@ svg {
 }
 
 svg.rect {
-    cursor: url('rect-cursor.svg') 12 12, crosshair;
+    cursor: url('images/rect-cursor.svg') 12 12, crosshair;
 }
 
 svg.ellipse {
-    cursor: url('ellipse-cursor.svg') 12 12, crosshair;
+    cursor: url('images/ellipse-cursor.svg') 12 12, crosshair;
 }
 
 svg.select {
