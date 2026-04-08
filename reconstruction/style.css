@@ -1,0 +1,218 @@
+:root {
+    --base-font-size: 16px;
+}
+
+body, html {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: sans-serif;
+    overflow: hidden;
+    font-size: var(--base-font-size);
+    touch-action: none;
+}
+
+#toolbar {
+    background: #333;
+    color: white;
+    padding: 0.625em;
+    display: flex;
+    gap: 0.625em;
+    align-items: center;
+}
+
+button {
+    padding: 0.5em 0.75em;
+    cursor: pointer;
+    background: #555;
+    color: white;
+    border: none;
+    border-radius: 0.25em;
+}
+
+button.active {
+    background: #007bff;
+}
+
+#main-container {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+#left-panel {
+    width: 18.75em;
+    flex-shrink: 0;
+    background: #f8f9fa;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 0.625em;
+}
+
+.entity-item {
+    padding: 0.5em;
+    margin-bottom: 0.3125em;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 0.25em;
+    display: flex;
+    align-items: center;
+    gap: 0.3125em;
+    cursor: pointer;
+    user-select: none;
+}
+
+.entity-item.selected {
+    border-color: #007bff;
+    background: #e7f1ff;
+}
+
+.entity-item .name-label {
+    flex-grow: 1;
+    padding: 2px 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.entity-item .delete-btn {
+    display: block;
+    cursor: pointer;
+    color: #ccc;
+    font-weight: bold;
+    padding: 0 5px;
+}
+
+.entity-item:hover .delete-btn {
+    color: #dc3545;
+}
+
+.entity-item .delete-btn:hover {
+    color: #a71d2a;
+}
+
+.entity-item input {
+    flex-grow: 1;
+    border: 1px solid #007bff;
+    background: white;
+    padding: 2px 5px;
+    display: none;
+    width: 100%;
+}
+
+.entity-item.editing .name-label {
+    display: none;
+}
+
+.entity-item.editing input {
+    display: block;
+}
+
+.entity-item input:focus {
+    outline: none;
+}
+
+#canvas-container {
+    flex-grow: 1;
+    position: relative;
+    background: #eee;
+    overflow: auto;
+    touch-action: auto;
+}
+
+svg {
+    display: block;
+    touch-action: pinch-zoom;
+}
+
+#zoom-group {
+    transform-origin: 0 0;
+}
+
+svg.rect {
+    cursor: url('rect-cursor.svg') 12 12, crosshair;
+}
+
+svg.ellipse {
+    cursor: url('ellipse-cursor.svg') 12 12, crosshair;
+}
+
+svg.select {
+    cursor: default;
+}
+
+.shape {
+    fill: rgba(0, 123, 255, 0.3);
+    stroke: #007bff;
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.shape.selected {
+    stroke: #ff0000;
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.handle {
+    cursor: pointer;
+}
+
+.handle[data-dir="n"], .handle[data-dir="s"] {
+    cursor: ns-resize;
+}
+
+.handle[data-dir="e"], .handle[data-dir="w"] {
+    cursor: ew-resize;
+}
+
+.handle[data-dir="nw"], .handle[data-dir="se"] {
+    cursor: nwse-resize;
+}
+
+.handle[data-dir="ne"], .handle[data-dir="sw"] {
+    cursor: nesw-resize;
+}
+
+.rotate-handle {
+    cursor: grab;
+}
+
+.ellipse-handle {
+    cursor: pointer;
+}
+
+.ellipse-handle[data-ellipse-dir="n"], .ellipse-handle[data-ellipse-dir="s"] {
+    cursor: ns-resize;
+}
+
+.ellipse-handle[data-ellipse-dir="e"], .ellipse-handle[data-ellipse-dir="w"] {
+    cursor: ew-resize;
+}
+
+.rotate-handle:active {
+    cursor: grabbing;
+}
+
+.rotate-handle:hover {
+    fill: #28a745;
+}
+
+#handles-group {
+    pointer-events: none;
+}
+
+#handles-group .handle, #handles-group .rotate-handle, #handles-group .ellipse-handle {
+    pointer-events: all;
+}
+
+#rotate-line {
+    vector-effect: non-scaling-stroke;
+}
+
+.panel-header {
+    margin-top: 0;
+}

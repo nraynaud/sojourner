@@ -5,227 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SVG 2D Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script type="module">
-      import Canny from './canny.mjs'
-
-      window.Canny = Canny
-    </script>
-    <style>
-        :root {
-            --base-font-size: 16px;
-        }
-
-        body, html {
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            font-family: sans-serif;
-            overflow: hidden;
-            font-size: var(--base-font-size);
-            touch-action: none;
-        }
-
-        #toolbar {
-            background: #333;
-            color: white;
-            padding: 0.625em;
-            display: flex;
-            gap: 0.625em;
-            align-items: center;
-        }
-
-        button {
-            padding: 0.5em 0.75em;
-            cursor: pointer;
-            background: #555;
-            color: white;
-            border: none;
-            border-radius: 0.25em;
-        }
-
-        button.active {
-            background: #007bff;
-        }
-
-        #main-container {
-            display: flex;
-            flex-grow: 1;
-            overflow: hidden;
-        }
-
-        #left-panel {
-            width: 18.75em;
-            flex-shrink: 0;
-            background: #f8f9fa;
-            border-right: 1px solid #ddd;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 0.625em;
-        }
-
-        .entity-item {
-            padding: 0.5em;
-            margin-bottom: 0.3125em;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 0.25em;
-            display: flex;
-            align-items: center;
-            gap: 0.3125em;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .entity-item.selected {
-            border-color: #007bff;
-            background: #e7f1ff;
-        }
-
-        .entity-item .name-label {
-            flex-grow: 1;
-            padding: 2px 5px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .entity-item .delete-btn {
-            display: block;
-            cursor: pointer;
-            color: #ccc;
-            font-weight: bold;
-            padding: 0 5px;
-        }
-
-        .entity-item:hover .delete-btn {
-            color: #dc3545;
-        }
-
-        .entity-item .delete-btn:hover {
-            color: #a71d2a;
-        }
-
-        .entity-item input {
-            flex-grow: 1;
-            border: 1px solid #007bff;
-            background: white;
-            padding: 2px 5px;
-            display: none;
-            width: 100%;
-        }
-
-        .entity-item.editing .name-label {
-            display: none;
-        }
-
-        .entity-item.editing input {
-            display: block;
-        }
-
-        .entity-item input:focus {
-            outline: none;
-        }
-
-        #canvas-container {
-            flex-grow: 1;
-            position: relative;
-            background: #eee;
-            overflow: auto;
-            touch-action: auto;
-        }
-
-        svg {
-            display: block;
-            touch-action: pinch-zoom;
-        }
-
-        #zoom-group {
-            transform-origin: 0 0;
-        }
-
-        svg.rect {
-            cursor: url('rect-cursor.svg') 12 12, crosshair;
-        }
-
-        svg.ellipse {
-            cursor: url('ellipse-cursor.svg') 12 12, crosshair;
-        }
-
-        svg.select {
-            cursor: default;
-        }
-
-        .shape {
-            fill: rgba(0, 123, 255, 0.3);
-            stroke: #007bff;
-            stroke-width: 2;
-            vector-effect: non-scaling-stroke;
-        }
-
-        .shape.selected {
-            stroke: #ff0000;
-            stroke-width: 3;
-            vector-effect: non-scaling-stroke;
-        }
-
-        .handle {
-            cursor: pointer;
-        }
-
-        .handle[data-dir="n"], .handle[data-dir="s"] {
-            cursor: ns-resize;
-        }
-
-        .handle[data-dir="e"], .handle[data-dir="w"] {
-            cursor: ew-resize;
-        }
-
-        .handle[data-dir="nw"], .handle[data-dir="se"] {
-            cursor: nwse-resize;
-        }
-
-        .handle[data-dir="ne"], .handle[data-dir="sw"] {
-            cursor: nesw-resize;
-        }
-
-        .rotate-handle {
-            cursor: grab;
-        }
-
-        .ellipse-handle {
-            cursor: pointer;
-        }
-
-        .ellipse-handle[data-ellipse-dir="n"], .ellipse-handle[data-ellipse-dir="s"] {
-            cursor: ns-resize;
-        }
-
-        .ellipse-handle[data-ellipse-dir="e"], .ellipse-handle[data-ellipse-dir="w"] {
-            cursor: ew-resize;
-        }
-
-        .rotate-handle:active {
-            cursor: grabbing;
-        }
-
-        .rotate-handle:hover {
-            fill: #28a745;
-        }
-
-        #handles-group {
-            pointer-events: none;
-        }
-
-        #handles-group .handle, #handles-group .rotate-handle, #handles-group .ellipse-handle {
-            pointer-events: all;
-        }
-
-        #rotate-line {
-            vector-effect: non-scaling-stroke;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -237,19 +17,19 @@
     <button id="zoom-out-btn">Zoom -</button>
     <button id="zoom-reset-btn">Reset Zoom</button>
     <button id="bg-btn">Set Background</button>
-    <input type="file" id="bg-input" accept="image/*" style="display: none;" onchange="handleBgChange(event)">
+    <input type="file" id="bg-input" accept="image/*" style="display: none;">
     <button id="undo-btn">Undo</button>
     <button id="redo-btn">Redo</button>
     <button id="save-btn">Save (Zip)</button>
     <button id="load-btn">Load (Zip)</button>
-    <input type="file" id="load-input" accept=".zip" style="display: none;" onchange="handleLoadFile(event)">
+    <input type="file" id="load-input" accept=".zip" style="display: none;">
     <button id="canny-btn">Canny</button>
     <span id="status">Mode: Rectangle</span>
 </div>
 
 <div id="main-container">
     <div id="left-panel">
-        <h3 style="margin-top: 0;">Entities</h3>
+        <h3 class="panel-header">Entities</h3>
         <div id="entity-list"></div>
     </div>
     <div id="canvas-container">
@@ -328,6 +108,8 @@
 <script type="module">
   import * as modes from './modes.mjs'
   import * as shapes from './shapes.mjs'
+  import Canny from './canny.mjs'
+
   export class ReconstructionDocument extends EventTarget {
     constructor (window) {
       super()
@@ -363,14 +145,14 @@
     undo () {
       if (this.undoStack.length === 0) return
       this.redoStack.push(this.getState())
-      this._applyData(this.undoStack.pop(), true)
+      this._applyData(this.undoStack.pop())
       this.dispatchEvent(new CustomEvent('stateChanged'))
     }
 
     redo () {
       if (this.redoStack.length === 0) return
       this.undoStack.push(this.getState())
-      this._applyData(this.redoStack.pop(), true)
+      this._applyData(this.redoStack.pop())
       this.dispatchEvent(new CustomEvent('stateChanged'))
     }
 
@@ -396,16 +178,17 @@
     getBackgroundSize () {
       const el = $('backgroundImage')
       if (!el) return {w: 1000, h: 1000} // Default size if no background is set
-      return {w: parseFloat(el.width.baseVal.value), h: parseFloat(el.height.baseVal.value)}
+      return {w: el.width.baseVal.value, h: el.height.baseVal.value}
     }
 
     async toggleCanny () {
       if (!this.backgroundImage) return
       this.cannyEnabled = !this.cannyEnabled
+      let $canny = $('canny-btn')
       if (this.cannyEnabled && !this.cannyObjectURL) {
         if (this.cannyProcessing) return
         this.cannyProcessing = true
-        $('canny-btn').textContent = 'Canny (Processing...)'
+        $canny.textContent = 'Canny (Processing...)'
         try {
           console.time('canny processing including worker overhead')
           const cannyBlob = await Canny.processAsync(this.bgObjectURL)
@@ -416,11 +199,11 @@
           this.cannyEnabled = false
         } finally {
           this.cannyProcessing = false
-          $('canny-btn').textContent = 'Canny'
+          $canny.textContent = 'Canny'
         }
       }
       this._updateBackgroundImage()
-      $('canny-btn').classList.toggle('active', this.cannyEnabled)
+      $canny.classList.toggle('active', this.cannyEnabled)
     }
 
     _updateBackgroundImage () {
@@ -578,7 +361,7 @@
         if (bf) d.backgroundImage = await bf.async('blob')
       }
       this._applyData(d)
-      transitionToSelect()
+      activeMode.transitionToSelect()
     }
 
     async loadFromDB () {
@@ -586,7 +369,7 @@
       if (d) this._applyData(d)
     }
 
-    _applyData (d, skipPushState = false) {
+    _applyData (d) {
       Object.assign(this, {
         entities: [],
         entityCount: d.entityCount || 0,
@@ -734,15 +517,22 @@
     'zoom-in-btn': () => zoom(1.1),
     'zoom-out-btn': () => zoom(0.9),
     'zoom-reset-btn': () => zoom(0),
+    'bg-btn': () => $('bg-input').click(),
     'undo-btn': () => doc.undo(),
     'redo-btn': () => doc.redo(),
     'save-btn': () => doc.saveToFile(),
     'load-btn': () => $('load-input').click(),
-    "canny-btn": toggleCanny,
-
+    'canny-btn': toggleCanny,
   }
   for (const [id, handler] of Object.entries(clickHandlers)) {
     $(id).addEventListener('click', handler)
+  }
+  const changeHandlers = {
+    'bg-input': handleBgChange,
+    'load-input': handleLoadFile
+  }
+  for (const [id, handler] of Object.entries(changeHandlers)) {
+    $(id).addEventListener('change', handler)
   }
 </script>
 </body>
