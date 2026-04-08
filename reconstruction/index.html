@@ -6,7 +6,7 @@
     <title>SVG 2D Editor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module">
-      import Canny from './canny.js'
+      import Canny from './canny.mjs'
 
       window.Canny = Canny
     </script>
@@ -325,9 +325,9 @@
     return {x: (evt.clientX - c.e) / c.a, y: (evt.clientY - c.f) / c.d}
   }
 </script>
-<script type="module" src="shapes.js"></script>
-<script type="module" src="modes.js"></script>
 <script type="module">
+  import * as modes from './modes.mjs'
+  import * as shapes from './shapes.mjs'
   export class ReconstructionDocument extends EventTarget {
     constructor (window) {
       super()
@@ -603,7 +603,7 @@
         this.svg.removeAttribute('height')
       }
       if (d.entities) d.entities.forEach(ent => {
-        const s = ent.type === 'rect' ? new RectangleShape(ent.id, null, 0) : new EllipseShape(ent.id, null, 0)
+        const s = ent.type === 'rect' ? new shapes.RectangleShape(ent.id, null, 0) : new shapes.EllipseShape(ent.id, null, 0)
         s.name = ent.name
         if (ent.transform) s.setAttributes({transform: ent.transform})
         s.setAttributes(ent.attributes)
@@ -614,35 +614,6 @@
     }
   }
 
-  class Mode extends EventTarget {
-    constructor (doc, name, svg) {
-      super()
-      Object.assign(this, {doc, name, svg, listeners: [], activationSelector: null})
-    }
-
-    listen (target, type, fn, opts) {
-      target.addEventListener(type, fn, opts)
-      this.listeners.push({target, type, fn, opts})
-    }
-
-    activate (holder) {
-      if (this.activationSelector)
-        $(this.activationSelector).classList.toggle('active', true)
-      let $status = $('status')
-      if ($status) $status.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
-      this.svg.classList.add(this.name)
-      this.listen(this.doc, 'sidebarShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
-    }
-
-    deactivate () {
-      this.listeners.forEach(({target, type, fn, opts}) => target.removeEventListener(type, fn, opts))
-      this.listeners = []
-      this.svg.classList.remove(this.name)
-      if (this.activationSelector)
-        $(this.activationSelector).classList.toggle('active', false)
-    }
-  }
-
   class ActiveModeHolder extends EventTarget {
     activeMode = null
 
@@ -650,7 +621,7 @@
       super()
       this.doc = doc
       this.$svg = $svg
-      this.setMode(SelectionIdleMode)
+      this.setMode(modes.SelectionIdleMode)
     }
 
     setMode (ModeClass, arg) {
@@ -666,8 +637,8 @@
     }
 
     transitionToSelect (el) {
-      if (el) dispatchCustom(this.activeMode, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
-      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: SelectionIdleMode})
+      if (el) dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionActiveMode, arg: el})
+      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
     }
   }
 
@@ -757,9 +728,9 @@
 
    */
   const clickHandlers = {
-    'rect-btn': () => activeMode.setMode(DrawRectangleMode),
-    'ellipse-btn': () => activeMode.setMode(DrawEllipseMode),
-    'select-btn': () => activeMode.setMode(SelectionIdleMode),
+    'rect-btn': () => activeMode.setMode(modes.DrawRectangleMode),
+    'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
+    'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),
     'zoom-in-btn': () => zoom(1.1),
     'zoom-out-btn': () => zoom(0.9),
     'zoom-reset-btn': () => zoom(0),

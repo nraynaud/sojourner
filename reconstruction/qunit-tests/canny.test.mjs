@@ -1,4 +1,4 @@
-import Canny from '../canny.js'
+import Canny from '../canny.mjs'
 
 async function showInCanvas (canvasElement, imageData) {
   canvasElement.style.backgroundColor = '#000'

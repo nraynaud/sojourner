@@ -1,4 +1,11 @@
-import { RectangleShape, EllipseShape } from './shapes.js';
+import { RectangleShape, EllipseShape } from './shapes.mjs'
+
+/**
+ * Represents the UI Mode of operation.
+ * @see https://interactions.acm.org/archive/view/july-august-2012/a-personal-history-of-modeless-text-editing-and-cut-copy-paste
+ * @event modeTransition CustomEvent emitted by this object when it wants to transition the UI to another mode
+ */
+
 
 class Mode extends EventTarget {
   constructor (doc, name, svg, $zoomGroup) {
@@ -62,7 +69,7 @@ class BaseDrawingMode extends Mode {
   }
 }
 
-class DrawRectangleMode extends BaseDrawingMode {
+export class DrawRectangleMode extends BaseDrawingMode {
   constructor (doc, svg, $zoomGroup) {
     super(doc, 'rect', svg, $zoomGroup)
     this.activationSelector = 'rect-btn'
@@ -81,7 +88,7 @@ class DrawRectangleMode extends BaseDrawingMode {
   }
 }
 
-class DrawEllipseMode extends BaseDrawingMode {
+export class DrawEllipseMode extends BaseDrawingMode {
   constructor (doc, svg, $zoomGroup) {
     super(doc, 'ellipse', svg, $zoomGroup)
     this.activationSelector = 'ellipse-btn'
@@ -100,7 +107,7 @@ class DrawEllipseMode extends BaseDrawingMode {
   }
 }
 
-class SelectionIdleMode extends Mode {
+export class SelectionIdleMode extends Mode {
   constructor (doc, svg, $zoomGroup) {
     super(doc, 'select', svg, $zoomGroup)
     this.activationSelector = 'select-btn'
@@ -122,7 +129,7 @@ class SelectionIdleMode extends Mode {
   }
 }
 
-class SelectionActiveMode extends Mode {
+export class SelectionActiveMode extends Mode {
   constructor (doc, svg, $zoomGroup, selectedElement, handles = $('handles-group')) {
     super(doc, 'select', svg, $zoomGroup)
     Object.assign(this, {
@@ -322,9 +329,3 @@ class SelectionActiveMode extends Mode {
   }
 }
 
-window.Mode = Mode;
-window.DrawRectangleMode = DrawRectangleMode;
-window.DrawEllipseMode = DrawEllipseMode;
-window.SelectionIdleMode = SelectionIdleMode;
-window.SelectionActiveMode = SelectionActiveMode;
-window.BaseDrawingMode = BaseDrawingMode;

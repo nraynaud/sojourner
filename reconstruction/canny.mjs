@@ -131,10 +131,10 @@ export default class Canny {
    * Applies Canny edge detection in a Web Worker.
    * @param {ImageData|string} source - The source image data or an image URL.
    * @param {Object} [options] - Options for processing.
-   * @param {string} [workerScript='canny-worker.js'] - Path to the worker script.
+   * @param {string} [workerScript='canny-worker.mjs'] - Path to the worker script.
    * @returns {Promise<Blob>} - A promise that resolves with the new Blob.
    */
-  static async processAsync (source, options = {}, workerScript = 'canny-worker.js') {
+  static async processAsync (source, options = {}, workerScript = 'canny-worker.mjs') {
     return new Promise((resolve, reject) => {
       const worker = new Worker(workerScript, {type: 'module'})
       worker.onmessage = e => {

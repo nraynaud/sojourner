@@ -109,11 +109,9 @@ export class RectangleShape extends Shape {
     rh.style.display = ''
     rl.style.display = ''
     const gap = 20
-    setAttributes(rh, {x: x + w / 2, y: y - gap})
-    setAttributes(rl, {x1: x + w / 2, y1: y, x2: x + w / 2, y2: y - gap, 'stroke-width': 1})
-    handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
-      h.style.display = 'none'
-    })
+    const cx = x + w / 2, cy = y + h / 2
+    setAttributes(rh, {x: cx, y: cy - h / 2 - gap})
+    setAttributes(rl, {x1: cx, y1: cy - h / 2, x2: cx, y2: cy - h / 2 - gap})
   }
 }
 
@@ -194,7 +192,3 @@ export class EllipseShape extends Shape {
 }
 
 
-
-window.Shape = Shape;
-window.RectangleShape = RectangleShape;
-window.EllipseShape = EllipseShape;

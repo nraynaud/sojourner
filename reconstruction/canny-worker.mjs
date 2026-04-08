@@ -1,4 +1,4 @@
-import Canny from './canny.js'
+import Canny from './canny.mjs'
 
 self.onmessage = async (e) => {
   let {source, options} = e.data
