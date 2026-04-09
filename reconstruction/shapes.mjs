@@ -34,7 +34,7 @@ export class Shape {
 
   getInitialRect () { throw 'getInitialRect must be implemented' }
 
-  updateResize (rect, lDx, lDy, dir) { throw 'updateResize must be implemented' }
+  updateResize (rect, lDx, lDy, dir) {}
 
   toJSON () {
     let type = 'rect'
@@ -175,9 +175,8 @@ export class EllipseShape extends Shape {
     _handlesGroup.querySelectorAll('.handle').forEach(h => {
       h.style.display = 'none'
     })
-    const rh = _handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
+    const rh = _handlesGroup.querySelector('.rotate-handle')
     rh.style.display = 'none'
-    //rl.style.display = 'none'
     _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
       h.style.display = ''
     })
@@ -234,9 +233,6 @@ export class VertexShape extends Shape {
 
   getInitialRect () {
     return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
-  }
-
-  updateResize (r, lDx, lDy, dir) {
   }
 
   updateHandles (handlesGroup, _context) {
