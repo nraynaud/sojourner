@@ -1,6 +1,3 @@
-:root {
-    --zoom-level: 1;
-}
 
 body, html {
     margin: 0;
@@ -122,13 +119,20 @@ button.active {
     touch-action: auto;
 }
 
-svg {
+#svg-canvas {
     display: block;
     touch-action: pinch-zoom;
+    --zoom-level: 1;
+    --background-width: 320px;
+    --background-height: 400px;
+    /* increase the block size so that the scrollbars match the background size */
+    width: calc(var(--zoom-level) * var(--background-width));
+    height: calc(var(--zoom-level) * var(--background-height));
 }
 
 #zoom-group {
     transform-origin: 0 0;
+    scale: var(--zoom-level);
 }
 
 svg.rect {

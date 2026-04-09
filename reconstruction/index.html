@@ -171,10 +171,6 @@
         this.bgObjectURL = URL.createObjectURL(blob)
         this._updateBackgroundImage()
       }
-      else {
-        this.svg.removeAttribute('width')
-        this.svg.removeAttribute('height')
-      }
       this.updateBgListItem()
       if (!skipSave) this.save()
     }
@@ -218,7 +214,8 @@
       tempImg.onload = () => {
         const zoom = this.getCurrentZoom()
         setAttributes(img, {width: tempImg.naturalWidth, height: tempImg.naturalHeight})
-        setAttributes(this.svg, {width: tempImg.naturalWidth * zoom, height: tempImg.naturalHeight * zoom})
+        this.svg.style.setProperty('--background-width', tempImg.naturalWidth + 'px')
+        this.svg.style.setProperty('--background-height', tempImg.naturalHeight + 'px')
       }
       tempImg.src = url
       this.backgroundGroup.appendChild(img)
@@ -393,8 +390,6 @@
         this.backgroundImage = null
         this.backgroundName = null
         this.backgroundGroup.innerHTML = ''
-        this.svg.removeAttribute('width')
-        this.svg.removeAttribute('height')
       }
       if (d.entities) d.entities.forEach(ent => {
         let s
@@ -473,36 +468,28 @@
   })
 
   export function getCurrentZoom () {
-    return parseFloat($zoomGroup.style.scale) || 1
+    return parseFloat($svg.style.getPropertyValue('--zoom-level')) || 1
   }
 
   export function zoom (factor, center) {
     let currentZoom = getCurrentZoom()
-    let postZoom = null
     let newZoom = currentZoom * factor
-    const {w, h} = doc.getBackgroundSize()
     if (factor === 0) {
       newZoom = 1
     }
     else {
+      const {w, h} = doc.getBackgroundSize()
       const rect = $viewport.getBoundingClientRect()
-      let minZoom
-      minZoom = Math.min(rect.width / w, rect.height / h)
+      let minZoom = Math.min(rect.width / w, rect.height / h)
       newZoom = Math.max(minZoom, newZoom)
-      if (center) {
-        postZoom = () => {
-          $viewport.scrollLeft += center.x * (newZoom - currentZoom)
-          $viewport.scrollTop += center.y * (newZoom - currentZoom)
-        }
-      }
     }
     if (newZoom === currentZoom)
       return
-    $zoomGroup.style.scale = `${newZoom}`
-    $svg.style.setProperty('--zoom-level', `${newZoom}`)
-    setAttributes($svg, {width: newZoom * w, height: newZoom * h})
-    if (postZoom)
-      postZoom()
+    $svg.style.setProperty('--zoom-level', '' + newZoom)
+    if (center) {
+      $viewport.scrollLeft += center.x * (newZoom - currentZoom)
+      $viewport.scrollTop += center.y * (newZoom - currentZoom)
+    }
     doc.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
   }
 

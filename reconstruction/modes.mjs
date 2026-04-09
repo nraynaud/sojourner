@@ -327,7 +327,6 @@ export class SelectionActiveMode extends Mode {
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
     }
-    this.listen(this.doc, 'zoomed', () => this.updateHandles())
   }
 
   deactivate () {
