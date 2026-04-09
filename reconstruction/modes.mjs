@@ -1,4 +1,4 @@
-import { RectangleShape, EllipseShape, VertexShape } from './shapes.mjs'
+import { EllipseShape, RectangleShape, VertexShape } from './shapes.mjs'
 
 /**
  * Represents the UI Mode of operation.
@@ -19,8 +19,7 @@ class Mode extends EventTarget {
 
   activate (holder) {
     this.holder = holder
-    if (this.activationSelector)
-      $(this.activationSelector).classList.toggle('active', true)
+    if (this.activationSelector) $(this.activationSelector).classList.toggle('active', true)
     let $status = $('status')
     if ($status) $status.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
     this.svg.classList.add(this.name)
@@ -31,8 +30,7 @@ class Mode extends EventTarget {
     this.listeners.forEach(({target, type, fn, opts}) => target.removeEventListener(type, fn, opts))
     this.listeners = []
     this.svg.classList.remove(this.name)
-    if (this.activationSelector)
-      $(this.activationSelector).classList.toggle('active', false)
+    if (this.activationSelector) $(this.activationSelector).classList.toggle('active', false)
   }
 }
 
@@ -53,7 +51,6 @@ class BaseDrawingMode extends Mode {
     this.startPoint = pos
     const shapeId = this.doc.nextEntityId()
     this.currentElement = this.createShape(`entity-${shapeId}`, pos, shapeId)
-    this.doc.shapesGroup.appendChild(this.currentElement.el)
     this.doc.addShape(this.currentElement)
     this.listen(this.doc.window, 'mousemove', this._move = e => this.onMouseMove(e))
     this.listen(this.doc.window, 'mouseup', this._up = e => this.onMouseUp(e))
@@ -98,26 +95,25 @@ export class DrawEllipseMode extends BaseDrawingMode {
   updateShape (pos) {
     const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
     this.currentElement.setAttributes({
-      cx: this.startPoint.x + w / 2,
-      cy: this.startPoint.y + h / 2,
-      rx: Math.abs(w) / 2,
-      ry: Math.abs(h) / 2
+      cx: this.startPoint.x + w / 2, cy: this.startPoint.y + h / 2, rx: Math.abs(w) / 2, ry: Math.abs(h) / 2
     })
   }
 }
 
-export class DrawVertexMode extends BaseDrawingMode {
+export class DrawVertexMode extends Mode {
   constructor (doc, svg, $zoomGroup) {
     super(doc, 'vertex', svg, $zoomGroup)
     this.activationSelector = 'vertex-btn'
   }
 
-  createShape (id, start, count) { return new VertexShape(id, start, count) }
-
-  updateShape (pos) {
-    this.currentElement.setAttributes({
-      x: pos.x,
-      y: pos.y
+  activate (holder) {
+    super.activate(holder)
+    this.listen(this.$zoomGroup, 'click', e => {
+      if (e.button !== 0) return
+      const shapeId = this.doc.nextEntityId()
+      const newElement = new VertexShape(`entity-${shapeId}`, getMousePos(e, this.$zoomGroup), shapeId)
+      this.doc.addShape(newElement)
+      dispatchCustom(this, 'modeTransition', {newMode: SelectionActiveMode, arg: newElement})
     })
   }
 }
@@ -169,8 +165,7 @@ export class SelectionActiveMode extends Mode {
     const dx = point.x - center.x
     const dy = point.y - center.y
     return {
-      x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad),
-      y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad)
+      x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad), y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad)
     }
   }
 

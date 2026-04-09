@@ -257,6 +257,8 @@
 
     addShape (shape, skipSave = false) {
       if (!skipSave) this.pushState()
+      if (!this.shapesGroup.contains(shape.el))
+        this.shapesGroup.appendChild(shape.el)
       this.entities.push(shape)
       this.addEntityItem(shape)
       shape.el.addEventListener('click', (e) => {
@@ -403,7 +405,6 @@
         s.name = ent.name
         if (ent.transform) s.setAttributes({transform: ent.transform})
         s.setAttributes(ent.attributes)
-        this.shapesGroup.appendChild(s.el)
         this.addShape(s, true)
       })
       this.save()
