@@ -6,7 +6,6 @@ import { RectangleShape, EllipseShape, VertexShape } from './shapes.mjs'
  * @event modeTransition CustomEvent emitted by this object when it wants to transition the UI to another mode
  */
 
-
 class Mode extends EventTarget {
   constructor (doc, name, svg, $zoomGroup) {
     super()
@@ -52,8 +51,8 @@ class BaseDrawingMode extends Mode {
     if (e.button !== 0) return
     const pos = getMousePos(e, this.$zoomGroup)
     this.startPoint = pos
-    this.doc.entityCount++
-    this.currentElement = this.createShape(`entity-${this.doc.entityCount}`, pos, this.doc.entityCount)
+    const shapeId = this.doc.nextEntityId()
+    this.currentElement = this.createShape(`entity-${shapeId}`, pos, shapeId)
     this.doc.shapesGroup.appendChild(this.currentElement.el)
     this.doc.addShape(this.currentElement)
     this.listen(this.doc.window, 'mousemove', this._move = e => this.onMouseMove(e))

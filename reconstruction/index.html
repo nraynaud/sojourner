@@ -224,6 +224,11 @@
       this.backgroundGroup.appendChild(img)
     }
 
+    nextEntityId () {
+      this.entityCount++
+      return this.entityCount
+    }
+
     getCurrentZoom () {
       return getCurrentZoom()
     }
