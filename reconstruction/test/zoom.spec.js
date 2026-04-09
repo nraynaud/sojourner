@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Zoom function tests', () => {
+
+  let getComputedScale = el => window.getComputedStyle(el).getPropertyValue('scale')
   test.beforeEach(async ({page}) => {
     await page.goto('/')
     // Ensure the page is ready
@@ -27,12 +29,12 @@ test.describe('Zoom function tests', () => {
 
     // Zoom in
     await page.click('#zoom-in-btn')
-    let zoomInScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let zoomInScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(zoomInScale)).toBeCloseTo(1.1)
 
     // Zoom out
     await page.click('#zoom-out-btn')
-    let zoomOutScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let zoomOutScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(zoomOutScale)).toBeCloseTo(1.1 * 0.9)
   })
 
@@ -43,12 +45,12 @@ test.describe('Zoom function tests', () => {
     await page.click('#zoom-in-btn')
     await page.click('#zoom-in-btn')
 
-    let currentScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let currentScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(currentScale)).toBeGreaterThan(1.2)
 
     // Reset zoom
     await page.click('#zoom-reset-btn')
-    let resetScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let resetScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(resetScale)).toBe(1)
   })
 
@@ -57,7 +59,7 @@ test.describe('Zoom function tests', () => {
     const viewport = page.locator('#canvas-container')
 
     // Get initial scale
-    let initialScale = await zoomGroup.evaluate(el => el.style.scale || '1')
+    let initialScale = await zoomGroup.evaluate(getComputedScale) | '1'
     expect(parseFloat(initialScale)).toBe(1)
 
     // Dispatch wheel event with Ctrl key
@@ -84,7 +86,7 @@ test.describe('Zoom function tests', () => {
       viewport.dispatchEvent(event)
     })
 
-    let wheelZoomInScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let wheelZoomInScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(wheelZoomInScale)).toBeCloseTo(1.05)
 
     await page.evaluate(() => {
@@ -98,7 +100,7 @@ test.describe('Zoom function tests', () => {
       viewport.dispatchEvent(event)
     })
 
-    let wheelZoomOutScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
+    let wheelZoomOutScale = await zoomGroup.evaluate(getComputedScale)
     expect(parseFloat(wheelZoomOutScale)).toBeCloseTo(1.05 * 0.95)
   })
 
