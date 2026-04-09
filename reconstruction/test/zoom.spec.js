@@ -27,12 +27,12 @@ test.describe('Zoom function tests', () => {
 
     // Zoom in
     await page.click('#zoom-in-btn')
-    let zoomInScale = await zoomGroup.evaluate(el => el.style.scale)
+    let zoomInScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(zoomInScale)).toBeCloseTo(1.1)
 
     // Zoom out
     await page.click('#zoom-out-btn')
-    let zoomOutScale = await zoomGroup.evaluate(el => el.style.scale)
+    let zoomOutScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(zoomOutScale)).toBeCloseTo(1.1 * 0.9)
   })
 
@@ -43,12 +43,12 @@ test.describe('Zoom function tests', () => {
     await page.click('#zoom-in-btn')
     await page.click('#zoom-in-btn')
 
-    let currentScale = await zoomGroup.evaluate(el => el.style.scale)
+    let currentScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(currentScale)).toBeGreaterThan(1.2)
 
     // Reset zoom
     await page.click('#zoom-reset-btn')
-    let resetScale = await zoomGroup.evaluate(el => el.style.scale)
+    let resetScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(resetScale)).toBe(1)
   })
 
@@ -84,7 +84,7 @@ test.describe('Zoom function tests', () => {
       viewport.dispatchEvent(event)
     })
 
-    let wheelZoomInScale = await zoomGroup.evaluate(el => el.style.scale)
+    let wheelZoomInScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(wheelZoomInScale)).toBeCloseTo(1.05)
 
     await page.evaluate(() => {
@@ -98,7 +98,7 @@ test.describe('Zoom function tests', () => {
       viewport.dispatchEvent(event)
     })
 
-    let wheelZoomOutScale = await zoomGroup.evaluate(el => el.style.scale)
+    let wheelZoomOutScale = await zoomGroup.evaluate(el => window.getComputedStyle(el).getPropertyValue('scale'))
     expect(parseFloat(wheelZoomOutScale)).toBeCloseTo(1.05 * 0.95)
   })
 
