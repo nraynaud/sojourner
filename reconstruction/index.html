@@ -212,7 +212,6 @@
       const url = this.cannyEnabled ? this.cannyObjectURL : this.bgObjectURL
       setAttributes(img, {href: url, id: 'backgroundImage'})
       tempImg.onload = () => {
-        const zoom = this.getCurrentZoom()
         setAttributes(img, {width: tempImg.naturalWidth, height: tempImg.naturalHeight})
         this.svg.style.setProperty('--background-width', tempImg.naturalWidth + 'px')
         this.svg.style.setProperty('--background-height', tempImg.naturalHeight + 'px')
