@@ -21,6 +21,7 @@ export class Shape {
   getLocalBBox () { return this.getInitialRect() }
 
   getRotation () {
+    if (this instanceof VertexShape) return this._currentRot || 0
     const t = this.el.getAttribute('transform')
     return t && t.match(/rotate\(([^, ]+)/) ? parseFloat(t.match(/rotate\(([^, ]+)/)[1]) : 0
   }
@@ -36,9 +37,13 @@ export class Shape {
   updateResize (rect, lDx, lDy, dir) { throw 'updateResize must be implemented' }
 
   toJSON () {
+    let type = 'rect'
+    if (this instanceof EllipseShape) type = 'ellipse'
+    if (this instanceof VertexShape) type = 'vertex'
+    const transform = this instanceof VertexShape ? null : this.el.getAttribute('transform')
     return {
-      type: this instanceof RectangleShape ? 'rect' : 'ellipse',
-      id: this.id, name: this.name, transform: this.el.getAttribute('transform'), attributes: this.getAttributes()
+      type,
+      id: this.id, name: this.name, transform, attributes: this.getAttributes()
     }
   }
 }
@@ -188,6 +193,64 @@ export class EllipseShape extends Shape {
       const angleRad = (angles[dir] || 0) * Math.PI / 180
       setAttributes(h, {x: cx + rx * Math.cos(angleRad), y: cy + ry * Math.sin(angleRad)})
     })
+  }
+}
+
+export class VertexShape extends Shape {
+  constructor (id, start, label) {
+    const el = createNS('use')
+    setAttributes(el, {
+      id,
+      href: '#vertex-icon',
+      'data-name': `Vertex ${label}`,
+      'data-x': start ? start.x : 0,
+      'data-y': start ? start.y : 0,
+      class: 'shape vertex-shape'
+    })
+    super(el)
+  }
+
+  setAttributes (attrs) {
+    if (attrs.x !== undefined) { this.el.setAttribute('data-x', attrs.x); delete attrs.x }
+    if (attrs.y !== undefined) { this.el.setAttribute('data-y', attrs.y); delete attrs.y }
+    super.setAttributes(attrs)
+  }
+
+  setTransform (rot, cx, cy) {
+    this._currentRot = rot
+  }
+
+  getAttributes () {
+    return {
+      x: this.el.getAttribute('data-x'),
+      y: this.el.getAttribute('data-y')
+    }
+  }
+
+  getCenter () {
+    return {x: parseFloat(this.el.getAttribute('data-x')) || 0, y: parseFloat(this.el.getAttribute('data-y')) || 0}
+  }
+
+  getLocalBBox () {
+    const r = this.getInitialRect()
+    const size = 3 // radius 3
+    return {x: r.x - size, y: r.y - size, width: 2 * size, height: 2 * size}
+  }
+
+  getInitialRect () {
+    return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+  }
+
+  updateResize (r, lDx, lDy, dir) {
+  }
+
+  updateHandles (handlesGroup, zoom) {
+    handlesGroup.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
+      h.style.display = 'none'
+    })
+    const rh = handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
+    rh.style.display = 'none'
+    rl.style.display = 'none'
   }
 }
 

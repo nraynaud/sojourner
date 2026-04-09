@@ -1,4 +1,4 @@
-import { RectangleShape, EllipseShape } from './shapes.mjs'
+import { RectangleShape, EllipseShape, VertexShape } from './shapes.mjs'
 
 /**
  * Represents the UI Mode of operation.
@@ -103,6 +103,22 @@ export class DrawEllipseMode extends BaseDrawingMode {
       cy: this.startPoint.y + h / 2,
       rx: Math.abs(w) / 2,
       ry: Math.abs(h) / 2
+    })
+  }
+}
+
+export class DrawVertexMode extends BaseDrawingMode {
+  constructor (doc, svg, $zoomGroup) {
+    super(doc, 'vertex', svg, $zoomGroup)
+    this.activationSelector = 'vertex-btn'
+  }
+
+  createShape (id, start, count) { return new VertexShape(id, start, count) }
+
+  updateShape (pos) {
+    this.currentElement.setAttributes({
+      x: pos.x,
+      y: pos.y
     })
   }
 }
@@ -260,6 +276,9 @@ export class SelectionActiveMode extends Mode {
         const localPos = this.toLocalPoint(pos, {x: c.cx, y: c.cy}, rot)
         this.updateEllipseResizeFromPointer(localPos)
       }
+      else if (s instanceof VertexShape) {
+        s.setAttributes({x: pos.x, y: pos.y})
+      }
       else {
         s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
       }
@@ -307,6 +326,9 @@ export class SelectionActiveMode extends Mode {
     this.handles.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
       this.listen(h, 'mousedown', (e) => this.resizeHandleMousedown(e))
     })
+    if (this.selectedElement instanceof VertexShape) {
+      this.listen(this.selectedElement.el, 'mousedown', (e) => this.resizeHandleMousedown(e))
+    }
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())

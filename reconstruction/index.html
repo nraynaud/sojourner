@@ -12,6 +12,7 @@
 <div id="toolbar">
     <button id="rect-btn">Rectangle</button>
     <button id="ellipse-btn">Ellipse</button>
+    <button id="vertex-btn">Vertex</button>
     <button id="select-btn">Select</button>
     <button id="zoom-in-btn">Zoom +</button>
     <button id="zoom-out-btn">Zoom -</button>
@@ -35,12 +36,15 @@
     <div id="canvas-container">
         <svg id="svg-canvas" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                <g id="handle-icon">
+                <g id="handle-icon" class="ignoreZoom">
                     <rect x="-5" y="-5" width="10" height="10" fill="white" stroke="#007bff" stroke-width="1"/>
                 </g>
-                <g id="rotate-handle-icon">
+                <g id="rotate-handle-icon" class="ignoreZoom">
                     <circle cx="0" cy="0" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
                 </g>
+                <symbol id="vertex-icon" class="ignoreZoom" viewBox="-4 -4 8 8" height="8" width="8" x="-4" y="-4">
+                    <circle cx="0" cy="0" r="3" fill="red"/>
+                </symbol>
             </defs>
             <g id="zoom-group">
                 <g id="background-group"></g>
@@ -386,7 +390,11 @@
         this.svg.removeAttribute('height')
       }
       if (d.entities) d.entities.forEach(ent => {
-        const s = ent.type === 'rect' ? new shapes.RectangleShape(ent.id, null, 0) : new shapes.EllipseShape(ent.id, null, 0)
+        let s
+        if (ent.type === 'rect') s = new shapes.RectangleShape(ent.id, null, 0)
+        else if (ent.type === 'ellipse') s = new shapes.EllipseShape(ent.id, null, 0)
+        else if (ent.type === 'vertex') s = new shapes.VertexShape(ent.id, null, 0, this.getCurrentZoom())
+        else return
         s.name = ent.name
         if (ent.transform) s.setAttributes({transform: ent.transform})
         s.setAttributes(ent.attributes)
@@ -485,6 +493,7 @@
     if (newZoom === currentZoom)
       return
     $zoomGroup.style.scale = `${newZoom}`
+    $svg.style.setProperty('--zoom-level', `${newZoom}`)
     setAttributes($svg, {width: newZoom * w, height: newZoom * h})
     if (postZoom)
       postZoom()
@@ -506,12 +515,10 @@
     doc.toggleCanny()
   }
 
-  /*
-
-   */
   const clickHandlers = {
     'rect-btn': () => activeMode.setMode(modes.DrawRectangleMode),
     'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
+    'vertex-btn': () => activeMode.setMode(modes.DrawVertexMode),
     'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),
     'zoom-in-btn': () => zoom(1.1),
     'zoom-out-btn': () => zoom(0.9),

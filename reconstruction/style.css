@@ -1,5 +1,6 @@
 :root {
     --base-font-size: 16px;
+    --zoom-level: 1;
 }
 
 body, html {
@@ -215,4 +216,19 @@ svg.select {
 
 .panel-header {
     margin-top: 0;
+}
+
+#vertex-icon * {
+    vector-effect: non-scaling-stroke;
+}
+
+.vertex-shape {
+    x: attr(data-x px, 0);
+    y: attr(data-y px, 0);
+}
+
+.ignoreZoom {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    transform: scale(calc(1 / var(--zoom-level)));
 }
