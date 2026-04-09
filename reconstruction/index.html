@@ -36,12 +36,14 @@
     <div id="canvas-container">
         <svg id="svg-canvas" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                <g id="handle-icon" class="ignoreZoom">
+                <symbol id="handle-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
                     <rect x="-5" y="-5" width="10" height="10" fill="white" stroke="#007bff" stroke-width="1"/>
-                </g>
-                <g id="rotate-handle-icon" class="ignoreZoom">
-                    <circle cx="0" cy="0" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
-                </g>
+                </symbol>
+                <symbol id="rotate-handle-icon" class="ignoreZoom" viewBox="-6 -20 12 20" height="32" width="12" x="-6"
+                        y="-26">
+                    <line stroke="#28a745" stroke-width="1" x1="0" y1="-20" x2="0" y2="0"/>
+                    <circle cx="0" cy="-20" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
+                </symbol>
                 <symbol id="vertex-icon" class="ignoreZoom" viewBox="-4 -4 8 8" height="8" width="8" x="-4" y="-4">
                     <circle cx="0" cy="0" r="3" fill="red"/>
                 </symbol>
@@ -49,25 +51,23 @@
             <g id="zoom-group">
                 <g id="background-group"></g>
                 <g id="shapes-group"></g>
-            </g>
-            <g id="handles-group" style="visibility: hidden;">
-                <!-- Resize handles -->
-                <use class="handle" data-dir="nw" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="n" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="ne" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="e" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="se" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="s" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="sw" x="0" y="0" href="#handle-icon"/>
-                <use class="handle" data-dir="w" x="0" y="0" href="#handle-icon"/>
-                <!-- Rotate handle -->
-                <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
-                <!-- Ellipse curve handles -->
-                <use class="ellipse-handle" data-ellipse-dir="n" x="0" y="0" href="#handle-icon"/>
-                <use class="ellipse-handle" data-ellipse-dir="e" x="0" y="0" href="#handle-icon"/>
-                <use class="ellipse-handle" data-ellipse-dir="s" x="0" y="0" href="#handle-icon"/>
-                <use class="ellipse-handle" data-ellipse-dir="w" x="0" y="0" href="#handle-icon"/>
-                <line id="rotate-line" stroke="#28a745" stroke-width="1"/>
+                <g id="handles-group" style="visibility: hidden;">
+                    <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
+                    <!-- Resize handles -->
+                    <use class="handle " data-dir="nw" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="n" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="ne" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="e" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="se" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="s" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="sw" x="0" y="0" href="#handle-icon"/>
+                    <use class="handle " data-dir="w" x="0" y="0" href="#handle-icon"/>
+                    <!-- Ellipse curve handles -->
+                    <use class="ellipse-handle" data-ellipse-dir="n" x="0" y="0" href="#handle-icon"/>
+                    <use class="ellipse-handle" data-ellipse-dir="e" x="0" y="0" href="#handle-icon"/>
+                    <use class="ellipse-handle" data-ellipse-dir="s" x="0" y="0" href="#handle-icon"/>
+                    <use class="ellipse-handle" data-ellipse-dir="w" x="0" y="0" href="#handle-icon"/>
+                </g>
             </g>
         </svg>
     </div>

@@ -28,7 +28,7 @@ export class Shape {
 
   setTransform (rot, cx, cy) { this.setAttributes({transform: `rotate(${rot}, ${cx}, ${cy})`}) }
 
-  updateHandles (_handlesGroup, _zoom, _context = {}) { throw 'updateHandles must be implemented' }
+  updateHandles (_handlesGroup, _context = {}) { throw 'updateHandles must be implemented' }
 
   getAttributes () { throw 'getAttributes must be implemented' }
 
@@ -99,24 +99,19 @@ export class RectangleShape extends Shape {
     this.setAttributes({x, y, width: w, height: h})
   }
 
-  updateHandles (handlesGroup, zoom) {
-    const b = this.getLocalBBox(), x = b.x * zoom, y = b.y * zoom, w = b.width * zoom, h = b.height * zoom
+  updateHandles (handlesGroup, _ctx) {
+    const b = this.getLocalBBox(), x = b.x, y = b.y, w = b.width, h = b.height
     const p = {
       nw: {x: x, y: y}, n: {x: x + w / 2, y: y}, ne: {x: x + w, y: y}, e: {x: x + w, y: y + h / 2},
       se: {x: x + w, y: y + h}, s: {x: x + w / 2, y: y + h}, sw: {x: x, y: y + h}, w: {x: x, y: y + h / 2}
     }
     handlesGroup.querySelectorAll('.handle').forEach(h => {
       h.style.display = ''
-      const p_ = p[h.getAttribute('data-dir')]
-      setAttributes(h, {x: p_.x, y: p_.y})
+      setAttributes(h, p[h.getAttribute('data-dir')])
     })
-    const rh = handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
+    const rh = handlesGroup.querySelector('.rotate-handle')
     rh.style.display = ''
-    rl.style.display = ''
-    const gap = 20
-    const cx = x + w / 2, cy = y + h / 2
-    setAttributes(rh, {x: cx, y: cy - h / 2 - gap})
-    setAttributes(rl, {x1: cx, y1: cy - h / 2, x2: cx, y2: cy - h / 2 - gap})
+    setAttributes(rh, p.n)
   }
 }
 
@@ -176,19 +171,19 @@ export class EllipseShape extends Shape {
     this.setAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
   }
 
-  updateHandles (handlesGroup, zoom, context = {}) {
-    handlesGroup.querySelectorAll('.handle').forEach(h => {
+  updateHandles (_handlesGroup, _context = {}) {
+    _handlesGroup.querySelectorAll('.handle').forEach(h => {
       h.style.display = 'none'
     })
-    const rh = handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
+    const rh = _handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
     rh.style.display = 'none'
-    rl.style.display = 'none'
-    handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
+    //rl.style.display = 'none'
+    _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
       h.style.display = ''
     })
-    const b = this.getLocalBBox(), x = b.x * zoom, y = b.y * zoom, w = b.width * zoom, h = b.height * zoom
-    const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2, angles = context.ellipseHandleAngles || {}
-    handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
+    const b = this.getLocalBBox(), x = b.x, y = b.y, w = b.width, h = b.height
+    const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2, angles = _context.ellipseHandleAngles || {}
+    _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
       const dir = h.getAttribute('data-ellipse-dir')
       const angleRad = (angles[dir] || 0) * Math.PI / 180
       setAttributes(h, {x: cx + rx * Math.cos(angleRad), y: cy + ry * Math.sin(angleRad)})
@@ -244,13 +239,12 @@ export class VertexShape extends Shape {
   updateResize (r, lDx, lDy, dir) {
   }
 
-  updateHandles (handlesGroup, zoom) {
+  updateHandles (handlesGroup, _context) {
     handlesGroup.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
       h.style.display = 'none'
     })
-    const rh = handlesGroup.querySelector('.rotate-handle'), rl = $('rotate-line')
+    const rh = handlesGroup.querySelector('.rotate-handle')
     rh.style.display = 'none'
-    rl.style.display = 'none'
   }
 }
 

@@ -1,5 +1,4 @@
 :root {
-    --base-font-size: 16px;
     --zoom-level: 1;
 }
 
@@ -10,7 +9,6 @@ body, html {
     height: 100vh;
     font-family: sans-serif;
     overflow: hidden;
-    font-size: var(--base-font-size);
     touch-action: none;
 }
 
@@ -218,17 +216,21 @@ svg.select {
     margin-top: 0;
 }
 
-#vertex-icon * {
-    vector-effect: non-scaling-stroke;
-}
-
 .vertex-shape {
     x: attr(data-x px, 0);
     y: attr(data-y px, 0);
 }
 
+/*
+Used on symbols whose representation doesn't change with the zoom level.
+Define it on the <symbol>, not on the <use>.
+ */
 .ignoreZoom {
-    transform-box: fill-box;
-    transform-origin: 50% 50%;
+    transform-box: stroke-box;
+    transform-origin: center;
     transform: scale(calc(1 / var(--zoom-level)));
+}
+
+#rotate-handle-icon {
+    transform-origin: bottom;
 }

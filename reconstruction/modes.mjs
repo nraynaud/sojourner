@@ -344,10 +344,8 @@ export class SelectionActiveMode extends Mode {
   updateHandles () {
     const s = this.selectedElement, rot = s.getRotation(), c = s.getCenter(), hg = this.handles
     hg.style.visibility = 'visible'
-    const z = this.doc.getCurrentZoom()
-    const cz = {x: c.x * z, y: c.y * z}
-    hg.setAttribute('transform', `rotate(${rot}, ${cz.x}, ${cz.y})`)
-    s.updateHandles(hg, z, {ellipseHandleAngles: this.ellipseHandleAngles})
+    hg.setAttribute('transform', `rotate(${rot}, ${c.x}, ${c.y})`)
+    s.updateHandles(hg, {ellipseHandleAngles: this.ellipseHandleAngles})
   }
 }
 
