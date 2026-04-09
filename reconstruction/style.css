@@ -139,6 +139,10 @@ svg.ellipse {
     cursor: url('images/ellipse-cursor.svg') 12 12, crosshair;
 }
 
+svg.vertex {
+    cursor: url('images/vertex-cursor.svg') 12 12, crosshair;
+}
+
 svg.select {
     cursor: default;
 }

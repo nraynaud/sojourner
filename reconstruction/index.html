@@ -265,7 +265,7 @@
       const id = shape.id, item = document.createElement('div')
       item.className = 'entity-item'
       item.setAttribute('data-id', id)
-      item.innerHTML = `<div class="name-label">${shape.name || id}</div><input type="text" value="${shape.name || id}"><div class="delete-btn">×</div>`
+      item.innerHTML = `<div class="name-label">${shape.name || id}</div><input id="entity-name-${id}" type="text" value="${shape.name || id}"><div class="delete-btn">×</div>`
       item.onclick = (e) => {
         e.stopPropagation()
         this.dispatchEvent(new CustomEvent('sidebarShapeClick', {detail: {shape}}))

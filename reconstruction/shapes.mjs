@@ -36,16 +36,7 @@ export class Shape {
 
   updateResize (rect, lDx, lDy, dir) {}
 
-  toJSON () {
-    let type = 'rect'
-    if (this instanceof EllipseShape) type = 'ellipse'
-    if (this instanceof VertexShape) type = 'vertex'
-    const transform = this instanceof VertexShape ? null : this.el.getAttribute('transform')
-    return {
-      type,
-      id: this.id, name: this.name, transform, attributes: this.getAttributes()
-    }
-  }
+  toJSON () {throw 'toJSON must be implemented'}
 }
 
 export class RectangleShape extends Shape {
@@ -61,6 +52,11 @@ export class RectangleShape extends Shape {
       class: 'shape'
     })
     super(el)
+  }
+
+  toJSON () {
+    const transform = this.el.getAttribute('transform')
+    return {type: 'rect', id: this.id, name: this.name, transform, attributes: this.getAttributes()}
   }
 
   getAttributes () {
@@ -188,6 +184,16 @@ export class EllipseShape extends Shape {
       setAttributes(h, {x: cx + rx * Math.cos(angleRad), y: cy + ry * Math.sin(angleRad)})
     })
   }
+
+  toJSON () {
+    return {
+      type: 'ellipse',
+      id: this.id,
+      name: this.name,
+      transform: this.el.getAttribute('transform'),
+      attributes: this.getAttributes()
+    }
+  }
 }
 
 export class VertexShape extends Shape {
@@ -205,8 +211,14 @@ export class VertexShape extends Shape {
   }
 
   setAttributes (attrs) {
-    if (attrs.x !== undefined) { this.el.setAttribute('data-x', attrs.x); delete attrs.x }
-    if (attrs.y !== undefined) { this.el.setAttribute('data-y', attrs.y); delete attrs.y }
+    if (attrs.x !== undefined) {
+      this.el.setAttribute('data-x', attrs.x)
+      delete attrs.x
+    }
+    if (attrs.y !== undefined) {
+      this.el.setAttribute('data-y', attrs.y)
+      delete attrs.y
+    }
     super.setAttributes(attrs)
   }
 
@@ -241,6 +253,12 @@ export class VertexShape extends Shape {
     })
     const rh = handlesGroup.querySelector('.rotate-handle')
     rh.style.display = 'none'
+  }
+
+  toJSON () {
+    return {
+      type: 'vertex', id: this.id, name: this.name, transform: null, attributes: this.getAttributes()
+    }
   }
 }
 
