@@ -406,8 +406,6 @@
         else return
         s.name = ent.name
         if (ent.rotate) s.el.style.rotate = ent.rotate
-        if (ent.transformOrigin) s.el.style.transformOrigin = ent.transformOrigin
-        if (ent.transform) s.el.setAttribute('transform', ent.transform)
         s.setAttributes(ent.attributes)
         this.addShape(s, true)
       })

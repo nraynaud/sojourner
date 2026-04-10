@@ -158,7 +158,7 @@ svg.select {
     vector-effect: non-scaling-stroke;
     transform-box: fill-box;
     transform-origin: center;
-    rotate: 0;
+    rotate: 0deg;
 }
 
 .shape.selected {

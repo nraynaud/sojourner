@@ -244,7 +244,7 @@ export class VertexShape extends Shape {
 
   toJSON () {
     return {
-      type: 'vertex', id: this.id, name: this.name, transform: null, attributes: this.getAttributes()
+      type: 'vertex', id: this.id, name: this.name, attributes: this.getAttributes()
     }
   }
 }

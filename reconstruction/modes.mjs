@@ -216,7 +216,17 @@ export class SelectionRectangleMode extends Mode {
       }
       else holder.transitionToSelect()
     })
-    this.handles.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
+    this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      this.doc.pushState()
+      this.isRotating = true
+      document.body.style.cursor = 'grabbing'
+      const pos = getMousePos(e, this.$zoomGroup), c = this.selectedElement.getCenter()
+      this.initialRotation = this.selectedElement.getRotation()
+      this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
+    })
+    this.handles.querySelectorAll('.handle').forEach(h => {
       this.listen(h, 'mousedown', (e) => {
         e.stopPropagation()
         this.doc.pushState()
@@ -234,7 +244,7 @@ export class SelectionRectangleMode extends Mode {
   }
 
   deactivate () {
-    this.handles.style.visibility = 'None'
+    this.handles.style.visibility = 'hidden'
     this.doc.updateSelection(null)
     super.deactivate()
   }
@@ -437,7 +447,7 @@ export class SelectionEllipseMode extends Mode {
   }
 
   deactivate () {
-    this.handles.style.visibility = 'None'
+    this.handles.style.visibility = 'hidden'
     this.doc.updateSelection(null)
     super.deactivate()
   }
@@ -488,7 +498,7 @@ export class SelectionVertexMode extends Mode {
     })
     this.listen(this.doc, 'stateChanged', () => {
       const s_ = this.doc.entities.find(e => e.id === s.id)
-      if (s_) s = this.selectedElement = s_
+      if (s_) {s = this.selectedElement = s_}
       else holder.transitionToSelect()
     })
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
