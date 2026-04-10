@@ -156,6 +156,9 @@ svg.select {
     stroke: #007bff;
     stroke-width: 2;
     vector-effect: non-scaling-stroke;
+    transform-box: fill-box;
+    transform-origin: center;
+    rotate: 0;
 }
 
 .shape.selected {
@@ -208,11 +211,11 @@ svg.select {
     fill: #28a745;
 }
 
-#handles-group {
+#rect-handles-group, #ellipse-handles-group {
     pointer-events: none;
 }
 
-#handles-group .handle, #handles-group .rotate-handle, #handles-group .ellipse-handle {
+#rect-handles-group .handle, #rect-handles-group .rotate-handle, #ellipse-handles-group .ellipse-handle {
     pointer-events: all;
 }
 

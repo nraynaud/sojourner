@@ -30,6 +30,7 @@ test.describe('Ellipse curve handles', () => {
     await expect(ellipse).toHaveCount(1)
     await ellipse.click()
 
+    await expect(page.locator('#ellipse-handles-group')).toBeVisible()
     await expect(page.locator('.ellipse-handle[data-ellipse-dir="e"]')).toBeVisible()
     await expect(page.locator('.ellipse-rotate-handle')).toHaveCount(0)
     await expect(page.locator('.rotate-handle')).toBeHidden()

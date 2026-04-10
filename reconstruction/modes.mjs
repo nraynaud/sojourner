@@ -61,7 +61,9 @@ class BaseDrawingMode extends Mode {
   onMouseUp (_e) {
     const el = this.currentElement
     this.doc.save()
-    dispatchCustom(this, 'modeTransition', {newMode: SelectionActiveMode, arg: el})
+    let ModeClass = SelectionRectangleMode
+    if (el instanceof EllipseShape) ModeClass = SelectionEllipseMode
+    dispatchCustom(this, 'modeTransition', {newMode: ModeClass, arg: el})
   }
 }
 
@@ -113,7 +115,7 @@ export class DrawVertexMode extends Mode {
       const shapeId = this.doc.nextEntityId()
       const newElement = new VertexShape(`entity-${shapeId}`, getMousePos(e, this.$zoomGroup), shapeId)
       this.doc.addShape(newElement)
-      dispatchCustom(this, 'modeTransition', {newMode: SelectionActiveMode, arg: newElement})
+      dispatchCustom(this, 'modeTransition', {newMode: SelectionVertexMode, arg: newElement})
     })
   }
 }
@@ -127,7 +129,6 @@ export class SelectionIdleMode extends Mode {
   activate (holder) {
     super.activate(holder)
     this.doc.updateSelection(null)
-    $('handles-group').style.visibility = 'hidden'
     this.listen(this.svg, 'mousedown', (e) => {
       if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
         holder.transitionToSelect()
@@ -140,8 +141,8 @@ export class SelectionIdleMode extends Mode {
   }
 }
 
-export class SelectionActiveMode extends Mode {
-  constructor (doc, svg, $zoomGroup, selectedElement, handles = $('handles-group')) {
+export class SelectionRectangleMode extends Mode {
+  constructor (doc, svg, $zoomGroup, selectedElement, handles = $('rect-handles-group')) {
     super(doc, 'select', svg, $zoomGroup)
     Object.assign(this, {
       selectedElement,
@@ -150,13 +151,119 @@ export class SelectionActiveMode extends Mode {
       startPoint: {x: 0, y: 0},
       initialRotation: 0,
       startAngle: 0,
+      handles,
+      activationSelector: 'select-btn'
+    })
+  }
+
+  updateResize (pos) {
+    const s = this.selectedElement
+    const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
+      dy = pos.y - this.startPoint.y
+    s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
+  }
+
+  activate (holder) {
+    super.activate(holder)
+    const s = this.selectedElement
+    this.doc.updateSelection(s)
+    this.handles.style.visibility = ''
+    this.updateHandles()
+    this.listen(this.svg, 'mousedown', (e) => {
+      if (e.target.closest('#background-group')) {
+        this.holder.transitionToSelect()
+        return
+      }
+      if (e.target === this.svg || e.target === this.doc.shapesGroup) {
+        this.holder.transitionToSelect()
+      }
+    })
+    this.listen(window, 'mousemove', (e) => {
+      const pos = getMousePos(e, this.$zoomGroup), s = this.selectedElement
+      if (this.isRotating && s) {
+        const c = s.getCenter(),
+          rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
+        s.setRotation(rot)
+        this.updateHandles()
+      }
+      else if (this.isResizing && s) {
+        this.updateResize(pos)
+        this.updateHandles()
+      }
+    })
+    this.listen(window, 'mouseup', (_e) => {
+      if (this.isRotating || this.isResizing) {
+        if (this.selectedElement) {
+          this.doc.save()
+        }
+        this.isRotating = this.isResizing = false
+        document.body.style.cursor = ''
+      }
+    })
+    this.listen(window, 'keydown', (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        this.doc.deleteShape(this.selectedElement)
+      }
+    })
+    this.listen(this.doc, 'deleteShape', (e) => {
+      if (e.detail.shape === this.selectedElement) holder.transitionToSelect()
+    })
+    this.listen(this.doc, 'stateChanged', () => {
+      const s_ = this.doc.entities.find(e => e.id === this.selectedElement.id)
+      if (s_) {
+        this.selectedElement = s_
+        this.updateHandles()
+      }
+      else holder.transitionToSelect()
+    })
+    this.handles.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
+      this.listen(h, 'mousedown', (e) => {
+        e.stopPropagation()
+        this.doc.pushState()
+        this.isResizing = true
+        this.resizeDir = e.currentTarget.getAttribute('data-dir') || e.currentTarget.getAttribute('data-ellipse-dir')
+        document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
+        this.startPoint = getMousePos(e, this.$zoomGroup)
+        this.initialRect = this.selectedElement.getInitialRect()
+      })
+    })
+    this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
+    if (this.doc.bgListItem) {
+      this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
+    }
+  }
+
+  deactivate () {
+    this.handles.style.visibility = 'None'
+    this.doc.updateSelection(null)
+    super.deactivate()
+  }
+
+  updateHandles () {
+    const s = this.selectedElement, rot = s.getRotation(), c = s.getCenter(), hg = this.handles
+    hg.style.transformOrigin = `${c.x}px ${c.y}px`
+    hg.style.rotate = `${rot}deg`
+    s.updateHandles(hg, this)
+  }
+}
+
+export class SelectionEllipseMode extends Mode {
+  constructor (doc, svg, $zoomGroup, selectedElement, handles = $('ellipse-handles-group')) {
+    super(doc, 'select', svg, $zoomGroup)
+    Object.assign(this, {
+      selectedElement,
+      isRotating: false,
+      isResizing: false,
+      startPoint: {x: 0, y: 0},
+      initialRotation: 0,
+      startAngle: 0,
+      handles,
+      activationSelector: 'select-btn',
       ellipseHandleAngles: {n: -90, e: 0, s: 90, w: 180},
       activeEllipseHandle: null,
       initialEllipseHandleAngle: 0,
       initialEllipseOppositePoint: null,
-      frozenEllipseHandlePositions: null,
-      handles,
-      activationSelector: 'select-btn'
+      frozenEllipseHandlePositions: null
     })
   }
 
@@ -166,6 +273,90 @@ export class SelectionActiveMode extends Mode {
     const dy = point.y - center.y
     return {
       x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad), y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad)
+    }
+  }
+
+  rotateHandleMousedown (e) {
+    e.stopPropagation()
+    this.doc.pushState()
+    this.isRotating = true
+    document.body.style.cursor = 'grabbing'
+    const pos = getMousePos(e, this.$zoomGroup), c = this.selectedElement.getCenter()
+    this.initialRotation = this.selectedElement.getRotation()
+    this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
+  }
+
+  resizeHandleMousedown (e) {
+    e.stopPropagation()
+    this.doc.pushState()
+    this.isResizing = true
+    this.resizeDir = e.currentTarget.getAttribute('data-dir') || e.currentTarget.getAttribute('data-ellipse-dir')
+    document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
+    this.startPoint = getMousePos(e, this.$zoomGroup)
+    this.initialRect = this.selectedElement.getInitialRect()
+
+    const handleKey = e.currentTarget.getAttribute('data-ellipse-dir')
+    if (handleKey) {
+      const angleDeg = this.ellipseHandleAngles[handleKey]
+      const angleRad = angleDeg * Math.PI / 180
+      this.activeEllipseHandle = handleKey
+      this.initialEllipseHandleAngle = angleDeg
+      this.initialEllipseOppositePoint = {
+        x: this.initialRect.cx - this.initialRect.rx * Math.cos(angleRad),
+        y: this.initialRect.cy - this.initialRect.ry * Math.sin(angleRad)
+      }
+      this.frozenEllipseHandlePositions = {}
+      Object.entries(this.ellipseHandleAngles).forEach(([k, deg]) => {
+        if (k === handleKey) return
+        const rad = deg * Math.PI / 180
+        this.frozenEllipseHandlePositions[k] = {
+          x: this.initialRect.cx + this.initialRect.rx * Math.cos(rad),
+          y: this.initialRect.cy + this.initialRect.ry * Math.sin(rad)
+        }
+      })
+    }
+  }
+
+  _keyHandler (e) {
+    if ((e.key === 'Delete' || e.key === 'Backspace')) {
+      this.doc.deleteShape(this.selectedElement)
+    }
+  }
+
+  _down (e) {
+    if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
+      this.holder.transitionToSelect()
+    }
+  }
+
+  _move (e) {
+    const pos = getMousePos(e, this.$zoomGroup), s = this.selectedElement
+    if (this.isRotating && s) {
+      const c = s.getCenter(),
+        rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
+      s.setRotation(rot)
+      this.updateHandles()
+    }
+    else if (this.isResizing && s) {
+      this.updateResize(pos)
+      const rot = s.getRotation()
+      s.setRotation(rot)
+      this.updateHandles()
+    }
+  }
+
+  updateResize (pos) {
+    if (this.activeEllipseHandle) {
+      const rot = this.selectedElement.getRotation()
+      const c = this.initialRect
+      const localPos = this.toLocalPoint(pos, {x: c.cx, y: c.cy}, rot)
+      this.updateEllipseResizeFromPointer(localPos)
+    }
+    else {
+      const s = this.selectedElement
+      const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
+        dy = pos.y - this.startPoint.y
+      s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
     }
   }
 
@@ -198,109 +389,27 @@ export class SelectionActiveMode extends Mode {
     }
   }
 
-  rotateHandleMousedown (e) {
-    e.stopPropagation()
-    this.doc.pushState()
-    this.isRotating = true
-    document.body.style.cursor = 'grabbing'
-    const pos = getMousePos(e, this.$zoomGroup), c = this.selectedElement.getCenter()
-    this.initialRotation = this.selectedElement.getRotation()
-    this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
-  }
-
-  resizeHandleMousedown (e) {
-    e.stopPropagation()
-    this.doc.pushState()
-    this.isResizing = true
-    this.resizeDir = e.currentTarget.getAttribute('data-dir') || e.currentTarget.getAttribute('data-ellipse-dir')
-    document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
-    this.startPoint = getMousePos(e, this.$zoomGroup)
-    this.initialRect = this.selectedElement.getInitialRect()
-    this.activeEllipseHandle = null
-    this.initialEllipseOppositePoint = null
-    if (this.selectedElement instanceof EllipseShape) {
-      const handleKey = e.currentTarget.getAttribute('data-ellipse-dir')
-      if (handleKey) {
-        const angleDeg = this.ellipseHandleAngles[handleKey]
-        const angleRad = angleDeg * Math.PI / 180
-        this.activeEllipseHandle = handleKey
-        this.initialEllipseHandleAngle = angleDeg
-        this.initialEllipseOppositePoint = {
-          x: this.initialRect.cx - this.initialRect.rx * Math.cos(angleRad),
-          y: this.initialRect.cy - this.initialRect.ry * Math.sin(angleRad)
-        }
-        this.frozenEllipseHandlePositions = {}
-        Object.entries(this.ellipseHandleAngles).forEach(([k, deg]) => {
-          if (k === handleKey) return
-          const rad = deg * Math.PI / 180
-          this.frozenEllipseHandlePositions[k] = {
-            x: this.initialRect.cx + this.initialRect.rx * Math.cos(rad),
-            y: this.initialRect.cy + this.initialRect.ry * Math.sin(rad)
-          }
-        })
-      }
-    }
-  }
-
-  _keyHandler (e) {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !document.querySelector('.entity-item.editing')) {
-      this.doc.removeShape(this.selectedElement)
-    }
-  }
-
-  _down (e) {
-    if (e.target === this.svg || e.target === this.doc.shapesGroup || e.target.closest('#background-group')) {
-      this.holder.transitionToSelect()
-    }
-  }
-
-  _move (e) {
-    const pos = getMousePos(e, this.$zoomGroup), s = this.selectedElement
-    if (this.isRotating && s) {
-      const c = s.getCenter(),
-        rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
-      s.setTransform(rot, c.x, c.y)
-      this.updateHandles()
-    }
-    else if (this.isResizing && s) {
-      const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
-        dy = pos.y - this.startPoint.y
-      if (s instanceof EllipseShape && this.activeEllipseHandle) {
-        const c = this.initialRect
-        const localPos = this.toLocalPoint(pos, {x: c.cx, y: c.cy}, rot)
-        this.updateEllipseResizeFromPointer(localPos)
-      }
-      else if (s instanceof VertexShape) {
-        s.setAttributes({x: pos.x, y: pos.y})
-      }
-      else {
-        s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
-      }
-      const c = s.getCenter()
-      s.setTransform(rot, c.x, c.y)
-      this.updateHandles()
-    }
-  }
-
   _up (_e) {
     if (this.isRotating || this.isResizing) {
       if (this.selectedElement) {
         this.doc.save()
       }
       this.isRotating = this.isResizing = false
+      document.body.style.cursor = ''
+    }
+    if (!this.isRotating && !this.isResizing) {
       this.activeEllipseHandle = null
       this.initialEllipseOppositePoint = null
       this.frozenEllipseHandlePositions = null
-      document.body.style.cursor = ''
     }
   }
 
   activate (holder) {
     super.activate(holder)
     const s = this.selectedElement
-    s.el.classList.add('selected')
-    this.updateHandles()
     this.doc.updateSelection(s)
+    this.handles.style.visibility = ''
+    this.updateHandles()
     this.listen(this.svg, 'mousedown', (e) => this._down(e))
     this.listen(window, 'mousemove', (e) => this._move(e))
     this.listen(window, 'mouseup', (e) => this._up(e))
@@ -316,13 +425,11 @@ export class SelectionActiveMode extends Mode {
       }
       else holder.transitionToSelect()
     })
-    this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => this.rotateHandleMousedown(e))
+    const rh = this.handles.querySelector('.rotate-handle')
+    if (rh) this.listen(rh, 'mousedown', (e) => this.rotateHandleMousedown(e))
     this.handles.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
       this.listen(h, 'mousedown', (e) => this.resizeHandleMousedown(e))
     })
-    if (this.selectedElement instanceof VertexShape) {
-      this.listen(this.selectedElement.el, 'mousedown', (e) => this.resizeHandleMousedown(e))
-    }
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
@@ -330,15 +437,67 @@ export class SelectionActiveMode extends Mode {
   }
 
   deactivate () {
-    if (this.selectedElement) this.selectedElement.el.classList.remove('selected')
+    this.handles.style.visibility = 'None'
+    this.doc.updateSelection(null)
     super.deactivate()
   }
 
   updateHandles () {
     const s = this.selectedElement, rot = s.getRotation(), c = s.getCenter(), hg = this.handles
-    hg.style.visibility = 'visible'
-    hg.setAttribute('transform', `rotate(${rot}, ${c.x}, ${c.y})`)
+    hg.style.transformOrigin = `${c.x}px ${c.y}px`
+    hg.style.rotate = `${rot}deg`
     s.updateHandles(hg, {ellipseHandleAngles: this.ellipseHandleAngles})
+  }
+}
+
+export class SelectionVertexMode extends Mode {
+  constructor (doc, svg, $zoomGroup, selectedElement) {
+    super(doc, 'select', svg, $zoomGroup)
+    Object.assign(this, {
+      selectedElement, isTranslating: false, activationSelector: 'select-btn'
+    })
+  }
+
+  activate (holder) {
+    super.activate(holder)
+    let s = this.selectedElement
+    s.el.style.cursor = 'move'
+    this.doc.updateSelection(s)
+    this.listen(s.el, 'mousedown', (e) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      this.doc.pushState()
+      this.isTranslating = true
+    })
+    this.listen(window, 'mousemove', (e) => {
+      const pos = getMousePos(e, this.$zoomGroup)
+      if (this.isTranslating) s.setAttributes(pos)
+    })
+    this.listen(window, 'mouseup', (_e) => {
+      if (this.isTranslating) {
+        this.doc.save()
+        this.isTranslating = false
+      }
+    })
+    this.listen(window, 'keydown', (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') this.doc.deleteShape(this.selectedElement)
+      if (e.key === 'Escape') holder.transitionToSelect()
+    })
+    this.listen(this.doc, 'deleteShape', (e) => {
+      if (e.detail.shape === s) holder.transitionToSelect()
+    })
+    this.listen(this.doc, 'stateChanged', () => {
+      const s_ = this.doc.entities.find(e => e.id === s.id)
+      if (s_) s = this.selectedElement = s_
+      else holder.transitionToSelect()
+    })
+    this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
+  }
+
+  deactivate () {
+    this.doc.updateSelection(null)
+    this.selectedElement.el.style.cursor = ''
+    super.deactivate()
   }
 }
 

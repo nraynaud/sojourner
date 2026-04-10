@@ -51,7 +51,7 @@
             <g id="zoom-group">
                 <g id="background-group"></g>
                 <g id="shapes-group"></g>
-                <g id="handles-group" style="visibility: hidden;">
+                <g id="rect-handles-group" style="visibility: hidden;">
                     <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
                     <!-- Resize handles -->
                     <use class="handle " data-dir="nw" x="0" y="0" href="#handle-icon"/>
@@ -62,6 +62,8 @@
                     <use class="handle " data-dir="s" x="0" y="0" href="#handle-icon"/>
                     <use class="handle " data-dir="sw" x="0" y="0" href="#handle-icon"/>
                     <use class="handle " data-dir="w" x="0" y="0" href="#handle-icon"/>
+                </g>
+                <g id="ellipse-handles-group" style="visibility: hidden;">
                     <!-- Ellipse curve handles -->
                     <use class="ellipse-handle" data-ellipse-dir="n" x="0" y="0" href="#handle-icon"/>
                     <use class="ellipse-handle" data-ellipse-dir="e" x="0" y="0" href="#handle-icon"/>
@@ -277,7 +279,7 @@
         del = item.querySelector('.delete-btn')
       del.onclick = (e) => {
         e.stopPropagation()
-        this.removeShape(shape)
+        this.deleteShape(shape)
       }
       const finish = () => {
         const newName = input.value.trim() || id
@@ -297,6 +299,7 @@
           input.value = shape.name || id
           item.classList.remove('editing')
         }
+        e.stopPropagation()
       }
       input.onblur = finish
       input.onmousedown = (e) => e.stopPropagation()
@@ -315,9 +318,14 @@
         item.classList.toggle('selected', s === sel)
         if (s === sel) item.scrollIntoView({behavior: 'smooth', block: 'nearest'})
       })
+      this.entities.forEach(s => {
+        if (s.el) {
+          s.el.classList.toggle('selected', s === sel)
+        }
+      })
     }
 
-    removeShape (shape) {
+    deleteShape (shape) {
       this.pushState()
       this.entities = this.entities.filter(s => s !== shape)
       const item = this.entityItemsMap.get(shape)
@@ -397,7 +405,9 @@
         else if (ent.type === 'vertex') s = new shapes.VertexShape(ent.id, null, 0, this.getCurrentZoom())
         else return
         s.name = ent.name
-        if (ent.transform) s.setAttributes({transform: ent.transform})
+        if (ent.rotate) s.el.style.rotate = ent.rotate
+        if (ent.transformOrigin) s.el.style.transformOrigin = ent.transformOrigin
+        if (ent.transform) s.el.setAttribute('transform', ent.transform)
         s.setAttributes(ent.attributes)
         this.addShape(s, true)
       })
@@ -428,7 +438,12 @@
     }
 
     transitionToSelect (el) {
-      if (el) dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionActiveMode, arg: el})
+      if (el) {
+        let ModeClass = modes.SelectionRectangleMode
+        if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
+        if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
+        dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
+      }
       else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
     }
   }

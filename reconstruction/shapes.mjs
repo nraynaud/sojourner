@@ -20,16 +20,6 @@ export class Shape {
 
   getLocalBBox () { return this.getInitialRect() }
 
-  getRotation () {
-    if (this instanceof VertexShape) return this._currentRot || 0
-    const t = this.el.getAttribute('transform')
-    return t && t.match(/rotate\(([^, ]+)/) ? parseFloat(t.match(/rotate\(([^, ]+)/)[1]) : 0
-  }
-
-  setTransform (rot, cx, cy) { this.setAttributes({transform: `rotate(${rot}, ${cx}, ${cy})`}) }
-
-  updateHandles (_handlesGroup, _context = {}) { throw 'updateHandles must be implemented' }
-
   getAttributes () { throw 'getAttributes must be implemented' }
 
   getInitialRect () { throw 'getInitialRect must be implemented' }
@@ -42,8 +32,8 @@ export class Shape {
 export class RectangleShape extends Shape {
   constructor (id, start, label) {
     const el = createNS('rect')
-    Object.assign(el, {id})
     setAttributes(el, {
+      id,
       x: start ? start.x : 0,
       y: start ? start.y : 0,
       width: 0,
@@ -51,12 +41,22 @@ export class RectangleShape extends Shape {
       'data-name': `Rectangle ${label}`,
       class: 'shape'
     })
+    el.style.rotate = '0'
     super(el)
   }
 
+  getRotation () {
+    const rot = this.el.style.rotate
+    return rot ? parseFloat(rot) : 0
+  }
+
+  setRotation (rot) {
+    this.el.style.rotate = `${rot}deg`
+  }
+
   toJSON () {
-    const transform = this.el.getAttribute('transform')
-    return {type: 'rect', id: this.id, name: this.name, transform, attributes: this.getAttributes()}
+    const rotate = this.el.style.rotate
+    return {type: 'rect', id: this.id, name: this.name, rotate, attributes: this.getAttributes()}
   }
 
   getAttributes () {
@@ -102,12 +102,10 @@ export class RectangleShape extends Shape {
       se: {x: x + w, y: y + h}, s: {x: x + w / 2, y: y + h}, sw: {x: x, y: y + h}, w: {x: x, y: y + h / 2}
     }
     handlesGroup.querySelectorAll('.handle').forEach(h => {
-      h.style.display = ''
       setAttributes(h, p[h.getAttribute('data-dir')])
     })
     const rh = handlesGroup.querySelector('.rotate-handle')
-    rh.style.display = ''
-    setAttributes(rh, p.n)
+    if (rh) setAttributes(rh, p.n)
   }
 }
 
@@ -168,14 +166,6 @@ export class EllipseShape extends Shape {
   }
 
   updateHandles (_handlesGroup, _context = {}) {
-    _handlesGroup.querySelectorAll('.handle').forEach(h => {
-      h.style.display = 'none'
-    })
-    const rh = _handlesGroup.querySelector('.rotate-handle')
-    rh.style.display = 'none'
-    _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
-      h.style.display = ''
-    })
     const b = this.getLocalBBox(), x = b.x, y = b.y, w = b.width, h = b.height
     const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2, angles = _context.ellipseHandleAngles || {}
     _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
@@ -185,12 +175,21 @@ export class EllipseShape extends Shape {
     })
   }
 
+  getRotation () {
+    const rot = this.el.style.rotate
+    return rot ? parseFloat(rot) : 0
+  }
+
+  setRotation (rot) {
+    this.el.style.rotate = `${rot}deg`
+  }
+
   toJSON () {
     return {
       type: 'ellipse',
       id: this.id,
       name: this.name,
-      transform: this.el.getAttribute('transform'),
+      rotate: this.el.style.rotate,
       attributes: this.getAttributes()
     }
   }
@@ -222,10 +221,6 @@ export class VertexShape extends Shape {
     super.setAttributes(attrs)
   }
 
-  setTransform (rot, cx, cy) {
-    this._currentRot = rot
-  }
-
   getAttributes () {
     return {
       x: this.el.getAttribute('data-x'),
@@ -245,14 +240,6 @@ export class VertexShape extends Shape {
 
   getInitialRect () {
     return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
-  }
-
-  updateHandles (handlesGroup, _context) {
-    handlesGroup.querySelectorAll('.handle, .ellipse-handle').forEach(h => {
-      h.style.display = 'none'
-    })
-    const rh = handlesGroup.querySelector('.rotate-handle')
-    rh.style.display = 'none'
   }
 
   toJSON () {
