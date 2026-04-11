@@ -29,83 +29,64 @@ export class Shape {
   toJSON () {throw 'toJSON must be implemented'}
 }
 
-export class RectangleShape extends Shape {
+export class QuadrilateralShape extends Shape {
   constructor (id, start, label) {
-    const el = createNS('rect')
+    const el = createNS('polygon')
+    const x = start ? start.x : 0, y = start ? start.y : 0
     setAttributes(el, {
       id,
-      x: start ? start.x : 0,
-      y: start ? start.y : 0,
-      width: 0,
-      height: 0,
-      'data-name': `Rectangle ${label}`,
+      points: `${x},${y} ${x},${y} ${x},${y} ${x},${y}`,
+      'data-name': `Quadrilateral ${label}`,
       class: 'shape'
     })
-    el.style.rotate = '0'
     super(el)
   }
 
-  getRotation () {
-    const rot = this.el.style.rotate
-    return rot ? parseFloat(rot) : 0
+  getPoints () {
+    const pts = this.el.getAttribute('points').split(/\s+/).filter(p => p)
+    return pts.map(p => {
+      const [x, y] = p.split(',').map(parseFloat)
+      return {x, y}
+    })
   }
 
-  setRotation (rot) {
-    this.el.style.rotate = `${rot}deg`
+  setPoints (points) {
+    this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
+  }
+
+  getCenter () {
+    const pts = this.getPoints()
+    return pts.reduce((acc, p) => ({x: acc.x + p.x / 4, y: acc.y + p.y / 4}), {x: 0, y: 0})
   }
 
   toJSON () {
-    const rotate = this.el.style.rotate
-    return {type: 'rect', id: this.id, name: this.name, rotate, attributes: this.getAttributes()}
+    return {type: 'quad', id: this.id, name: this.name, attributes: this.getAttributes()}
   }
 
   getAttributes () {
     return {
-      x: this.el.getAttribute('x'),
-      y: this.el.getAttribute('y'),
-      width: this.el.getAttribute('width'),
-      height: this.el.getAttribute('height')
+      points: this.el.getAttribute('points')
     }
   }
 
   getInitialRect () {
-    return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+    return {points: this.getPoints()}
   }
 
-  updateResize (r, lDx, lDy, dir) {
-    let x = r.x, y = r.y, w = r.width, h = r.height
-    if (dir.includes('e')) w += lDx
-    if (dir.includes('s')) h += lDy
-    if (dir.includes('w')) {
-      x += lDx
-      w -= lDx
+  updateVertex (initial, lDx, lDy, dir) {
+    const pts = [...initial.points]
+    const idx = {nw: 0, ne: 1, se: 2, sw: 3}[dir]
+    if (idx !== undefined) {
+      pts[idx] = {x: pts[idx].x + lDx, y: pts[idx].y + lDy}
     }
-    if (dir.includes('n')) {
-      y += lDy
-      h -= lDy
-    }
-    if (w < 0) {
-      x += w
-      w = Math.abs(w)
-    }
-    if (h < 0) {
-      y += h
-      h = Math.abs(h)
-    }
-    this.setAttributes({x, y, width: w, height: h})
+    this.setPoints(pts)
   }
 
   updateHandles (handlesGroup, _ctx) {
-    const b = this.getLocalBBox(), x = b.x, y = b.y, w = b.width, h = b.height
-    const p = {
-      nw: {x: x, y: y}, n: {x: x + w / 2, y: y}, ne: {x: x + w, y: y}, e: {x: x + w, y: y + h / 2},
-      se: {x: x + w, y: y + h}, s: {x: x + w / 2, y: y + h}, sw: {x: x, y: y + h}, w: {x: x, y: y + h / 2}
-    }
-    handlesGroup.querySelectorAll('.handle').forEach(h => {
-      setAttributes(h, p[h.getAttribute('data-dir')])
+    const pts = this.getPoints()
+    handlesGroup.querySelectorAll('.handle').forEach((h, idx) => {
+      setAttributes(h, {x: pts[idx].x, y: pts[idx].y})
     })
-    const rh = handlesGroup.querySelector('.rotate-handle')
-    if (rh) setAttributes(rh, p.n)
   }
 }
 

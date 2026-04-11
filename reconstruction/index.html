@@ -10,7 +10,7 @@
 <body>
 
 <div id="toolbar">
-    <button id="rect-btn">Rectangle</button>
+    <button id="rect-btn">Quadrilateral</button>
     <button id="ellipse-btn">Ellipse</button>
     <button id="vertex-btn">Vertex</button>
     <button id="select-btn">Select</button>
@@ -51,17 +51,12 @@
             <g id="zoom-group">
                 <g id="background-group"></g>
                 <g id="shapes-group"></g>
-                <g id="rect-handles-group" style="visibility: hidden;">
-                    <use class="rotate-handle" x="0" y="0" href="#rotate-handle-icon"/>
+                <g id="quad-handles-group" style="visibility: hidden;">
                     <!-- Resize handles -->
                     <use class="handle " data-dir="nw" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="n" x="0" y="0" href="#handle-icon"/>
                     <use class="handle " data-dir="ne" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="e" x="0" y="0" href="#handle-icon"/>
                     <use class="handle " data-dir="se" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="s" x="0" y="0" href="#handle-icon"/>
                     <use class="handle " data-dir="sw" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="w" x="0" y="0" href="#handle-icon"/>
                 </g>
                 <g id="ellipse-handles-group" style="visibility: hidden;">
                     <!-- Ellipse curve handles -->
@@ -398,15 +393,24 @@
         this.backgroundName = null
         this.backgroundGroup.innerHTML = ''
       }
-      if (d.entities) d.entities.forEach(ent => {
+    if (d.entities) d.entities.forEach(ent => {
         let s
-        if (ent.type === 'rect') s = new shapes.RectangleShape(ent.id, null, 0)
+        if (ent.type === 'rect') {
+          s = new shapes.QuadrilateralShape(ent.id, null, 0)
+          const x = parseFloat(ent.attributes.x) || 0, y = parseFloat(ent.attributes.y) || 0
+          const w = parseFloat(ent.attributes.width) || 0, h = parseFloat(ent.attributes.height) || 0
+          s.setPoints([{x, y}, {x: x + w, y}, {x: x + w, y: y + h}, {x, y: y + h}])
+        }
+        else if (ent.type === 'quad') {
+          s = new shapes.QuadrilateralShape(ent.id, null, 0)
+          s.el.setAttribute('points', ent.attributes.points)
+        }
         else if (ent.type === 'ellipse') s = new shapes.EllipseShape(ent.id, null, 0)
         else if (ent.type === 'vertex') s = new shapes.VertexShape(ent.id, null, 0, this.getCurrentZoom())
         else return
         s.name = ent.name
-        if (ent.rotate) s.el.style.rotate = ent.rotate
-        s.setAttributes(ent.attributes)
+        if (ent.rotate && ent.type !== 'rect' && ent.type !== 'quad') s.el.style.rotate = ent.rotate
+        if (ent.type !== 'rect' && ent.type !== 'quad') s.setAttributes(ent.attributes)
         this.addShape(s, true)
       })
       this.save()
@@ -437,7 +441,7 @@
 
     transitionToSelect (el) {
       if (el) {
-        let ModeClass = modes.SelectionRectangleMode
+        let ModeClass = modes.SelectionQuadrilateralMode
         if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
         if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
         dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
@@ -521,7 +525,7 @@
   }
 
   const clickHandlers = {
-    'rect-btn': () => activeMode.setMode(modes.DrawRectangleMode),
+    'rect-btn': () => activeMode.setMode(modes.DrawQuadrilateralMode),
     'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
     'vertex-btn': () => activeMode.setMode(modes.DrawVertexMode),
     'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),

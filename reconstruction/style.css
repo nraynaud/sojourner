@@ -135,7 +135,7 @@ button.active {
     scale: var(--zoom-level);
 }
 
-svg.rect {
+svg.quad {
     cursor: url('images/rect-cursor.svg') 12 12, crosshair;
 }
 
@@ -179,12 +179,8 @@ svg.select {
     cursor: ew-resize;
 }
 
-.handle[data-dir="nw"], .handle[data-dir="se"] {
-    cursor: nwse-resize;
-}
-
-.handle[data-dir="ne"], .handle[data-dir="sw"] {
-    cursor: nesw-resize;
+.handle[data-dir="nw"], .handle[data-dir="ne"], .handle[data-dir="se"], .handle[data-dir="sw"] {
+    cursor: move;
 }
 
 .rotate-handle {
@@ -211,11 +207,11 @@ svg.select {
     fill: #28a745;
 }
 
-#rect-handles-group, #ellipse-handles-group {
+#quad-handles-group, #ellipse-handles-group {
     pointer-events: none;
 }
 
-#rect-handles-group .handle, #rect-handles-group .rotate-handle, #ellipse-handles-group .ellipse-handle {
+#quad-handles-group .handle, #quad-handles-group .rotate-handle, #ellipse-handles-group .ellipse-handle {
     pointer-events: all;
 }
 

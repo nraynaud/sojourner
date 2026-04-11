@@ -1,4 +1,4 @@
-import { EllipseShape, RectangleShape, VertexShape } from './shapes.mjs'
+import { EllipseShape, QuadrilateralShape, VertexShape } from './shapes.mjs'
 
 /**
  * Represents the UI Mode of operation.
@@ -61,28 +61,26 @@ class BaseDrawingMode extends Mode {
   onMouseUp (_e) {
     const el = this.currentElement
     this.doc.save()
-    let ModeClass = SelectionRectangleMode
+    let ModeClass = SelectionQuadrilateralMode
     if (el instanceof EllipseShape) ModeClass = SelectionEllipseMode
     dispatchCustom(this, 'modeTransition', {newMode: ModeClass, arg: el})
   }
 }
 
-export class DrawRectangleMode extends BaseDrawingMode {
+export class DrawQuadrilateralMode extends BaseDrawingMode {
   constructor (doc, svg, $zoomGroup) {
-    super(doc, 'rect', svg, $zoomGroup)
+    super(doc, 'quad', svg, $zoomGroup)
     this.activationSelector = 'rect-btn'
   }
 
-  createShape (id, start, label) { return new RectangleShape(id, start, label) }
+  createShape (id, start, label) { return new QuadrilateralShape(id, start, label) }
 
   updateShape (pos) {
-    const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
-    this.currentElement.setAttributes({
-      x: w < 0 ? pos.x : this.startPoint.x,
-      width: Math.abs(w),
-      y: h < 0 ? pos.y : this.startPoint.y,
-      height: Math.abs(h)
-    })
+    const x1 = this.startPoint.x, y1 = this.startPoint.y
+    const x2 = pos.x, y2 = pos.y
+    this.currentElement.setPoints([
+      {x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}
+    ])
   }
 }
 
@@ -141,26 +139,23 @@ export class SelectionIdleMode extends Mode {
   }
 }
 
-export class SelectionRectangleMode extends Mode {
-  constructor (doc, svg, $zoomGroup, selectedElement, handles = $('rect-handles-group')) {
+export class SelectionQuadrilateralMode extends Mode {
+  constructor (doc, svg, $zoomGroup, selectedElement, handles = $('quad-handles-group')) {
     super(doc, 'select', svg, $zoomGroup)
     Object.assign(this, {
       selectedElement,
-      isRotating: false,
-      isResizing: false,
+      isDraggingVertex: false,
       startPoint: {x: 0, y: 0},
-      initialRotation: 0,
-      startAngle: 0,
       handles,
       activationSelector: 'select-btn'
     })
   }
 
-  updateResize (pos) {
+  updateVertex (pos) {
     const s = this.selectedElement
-    const rot = s.getRotation(), rad = -rot * Math.PI / 180, dx = pos.x - this.startPoint.x,
+    const dx = pos.x - this.startPoint.x,
       dy = pos.y - this.startPoint.y
-    s.updateResize(this.initialRect, dx * Math.cos(rad) - dy * Math.sin(rad), dx * Math.sin(rad) + dy * Math.cos(rad), this.resizeDir)
+    s.updateVertex(this.initialRect, dx, dy, this.resizeDir)
   }
 
   activate (holder) {
@@ -180,23 +175,17 @@ export class SelectionRectangleMode extends Mode {
     })
     this.listen(window, 'mousemove', (e) => {
       const pos = getMousePos(e, this.$zoomGroup), s = this.selectedElement
-      if (this.isRotating && s) {
-        const c = s.getCenter(),
-          rot = this.initialRotation + (Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI - this.startAngle)
-        s.setRotation(rot)
-        this.updateHandles()
-      }
-      else if (this.isResizing && s) {
-        this.updateResize(pos)
+      if (this.isDraggingVertex && s) {
+        this.updateVertex(pos)
         this.updateHandles()
       }
     })
     this.listen(window, 'mouseup', (_e) => {
-      if (this.isRotating || this.isResizing) {
+      if (this.isDraggingVertex) {
         if (this.selectedElement) {
           this.doc.save()
         }
-        this.isRotating = this.isResizing = false
+        this.isDraggingVertex = false
         document.body.style.cursor = ''
       }
     })
@@ -216,21 +205,11 @@ export class SelectionRectangleMode extends Mode {
       }
       else holder.transitionToSelect()
     })
-    this.listen(this.handles.querySelector('.rotate-handle'), 'mousedown', (e) => {
-      if (e.button !== 0) return
-      e.stopPropagation()
-      this.doc.pushState()
-      this.isRotating = true
-      document.body.style.cursor = 'grabbing'
-      const pos = getMousePos(e, this.$zoomGroup), c = this.selectedElement.getCenter()
-      this.initialRotation = this.selectedElement.getRotation()
-      this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
-    })
     this.handles.querySelectorAll('.handle').forEach(h => {
       this.listen(h, 'mousedown', (e) => {
         e.stopPropagation()
         this.doc.pushState()
-        this.isResizing = true
+        this.isDraggingVertex = true
         this.resizeDir = e.currentTarget.getAttribute('data-dir') || e.currentTarget.getAttribute('data-ellipse-dir')
         document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
         this.startPoint = getMousePos(e, this.$zoomGroup)
@@ -250,10 +229,7 @@ export class SelectionRectangleMode extends Mode {
   }
 
   updateHandles () {
-    const s = this.selectedElement, rot = s.getRotation(), c = s.getCenter(), hg = this.handles
-    hg.style.transformOrigin = `${c.x}px ${c.y}px`
-    hg.style.rotate = `${rot}deg`
-    s.updateHandles(hg, this)
+    this.selectedElement.updateHandles(this.handles, this)
   }
 }
 

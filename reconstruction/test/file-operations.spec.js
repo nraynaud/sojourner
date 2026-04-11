@@ -92,8 +92,8 @@ test.describe('File operations', () => {
 
     // Verify it loaded
     const shapesGroup = page.locator('#shapes-group')
-    await expect(shapesGroup.locator('rect')).toHaveCount(1)
-    await expect(shapesGroup.locator('rect')).toHaveAttribute('x', '10')
+    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
+    await expect(shapesGroup.locator('polygon')).toHaveAttribute('points', /10,10/)
     
     const entityList = page.locator('#entity-list')
     // Background + Rectangle = 2 items

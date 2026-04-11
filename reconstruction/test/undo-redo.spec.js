@@ -34,19 +34,19 @@ test.describe('Undo/Redo test', () => {
     await page.mouse.up()
 
     // Verify rectangle added
-    await expect(shapesGroup.locator('rect')).toHaveCount(1)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
     // There should be 2 items: 1 background and 1 rectangle
     await expect(entityList.locator('.entity-item')).toHaveCount(2)
 
     // Undo addition
     await page.click('#undo-btn')
-    await expect(shapesGroup.locator('rect')).toHaveCount(0)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
     // Only background should remain
     await expect(entityList.locator('.entity-item')).toHaveCount(1)
 
     // Redo addition
     await page.click('#redo-btn')
-    await expect(shapesGroup.locator('rect')).toHaveCount(1)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
     await expect(entityList.locator('.entity-item')).toHaveCount(2)
   })
 
@@ -63,22 +63,22 @@ test.describe('Undo/Redo test', () => {
     await page.mouse.move(box.x + 150, box.y + 150)
     await page.mouse.up()
 
-    await expect(shapesGroup.locator('rect')).toHaveCount(1)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
 
     // Delete the rectangle. We need to be specific because of the background item.
-    const rectItem = entityList.locator('.entity-item').filter({ hasText: 'Rectangle 1' })
+    const rectItem = entityList.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })
     await rectItem.hover()
     await rectItem.locator('.delete-btn').click()
 
-    await expect(shapesGroup.locator('rect')).toHaveCount(0)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
 
     // Undo deletion
     await page.click('#undo-btn')
-    await expect(shapesGroup.locator('rect')).toHaveCount(1)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
 
     // Redo deletion
     await page.click('#redo-btn')
-    await expect(shapesGroup.locator('rect')).toHaveCount(0)
+    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
   })
 
   test('Undo/Redo shape transformation (resize)', async ({page}) => {
@@ -93,8 +93,8 @@ test.describe('Undo/Redo test', () => {
     await page.mouse.move(box.x + 150, box.y + 150)
     await page.mouse.up()
 
-    const rect = shapesGroup.locator('rect')
-    await expect(rect).toHaveAttribute('width', '100')
+    const rect = shapesGroup.locator('polygon')
+    await expect(rect).toHaveAttribute('points', /150(\.[\d]+)?,1[45]\d/)
 
     // Click to select the rectangle to show handles
     await rect.click()
@@ -104,7 +104,7 @@ test.describe('Undo/Redo test', () => {
     await expect(handle).toBeVisible()
 
     // Use evaluate to perform a more direct drag because mouse.move/down/up can be tricky with non-standard coordinate systems or zoomed views
-    const resizedWidth = await page.evaluate(async (dir) => {
+    const resizedPoints = await page.evaluate(async (dir) => {
       const handle = document.querySelector(`.handle[data-dir="${dir}"]`)
       const down = new MouseEvent('mousedown', {
         bubbles: true,
@@ -131,18 +131,19 @@ test.describe('Undo/Redo test', () => {
       })
       window.dispatchEvent(up)
 
-      return document.querySelector('#shapes-group rect').getAttribute('width')
+      return document.querySelector('#shapes-group polygon').getAttribute('points')
     }, 'se')
 
-    expect(parseFloat(resizedWidth)).toBeGreaterThan(100)
+    // se handle moved by 100,100. Original se was 150,150. New should be 250,250
+    expect(resizedPoints).toContain('250')
 
     // Undo resize
     await page.click('#undo-btn')
-    await expect(rect).toHaveAttribute('width', '100')
+    await expect(rect).toHaveAttribute('points', /150(\.[\d]+)?,1[45]\d/)
 
     // Redo resize
     await page.click('#redo-btn')
-    await expect(rect).toHaveAttribute('width', resizedWidth)
+    await expect(rect).toHaveAttribute('points', resizedPoints)
   })
 
   test('Undo/Redo rename', async ({page}) => {

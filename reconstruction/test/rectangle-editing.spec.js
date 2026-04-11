@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('Rectangle Editing', () => {
+test.describe('Quadrilateral Editing', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('#svg-canvas')).toBeVisible()
@@ -16,7 +16,7 @@ test.describe('Rectangle Editing', () => {
     await expect(page.locator('#svg-canvas')).toBeVisible()
   })
 
-  async function createRectangle(page) {
+  async function createQuadrilateral(page) {
     const canvas = page.locator('#svg-canvas')
     const box = await canvas.boundingBox()
     await page.click('#rect-btn')
@@ -24,39 +24,43 @@ test.describe('Rectangle Editing', () => {
     await page.mouse.down()
     await page.mouse.move(box.x + 200, box.y + 200)
     await page.mouse.up()
-    return page.locator('#shapes-group rect')
+    return page.locator('#shapes-group polygon')
   }
 
-  test('can create a rectangle', async ({ page }) => {
-    const rect = await createRectangle(page)
-    await expect(rect).toHaveCount(1)
-    await expect(rect).toHaveAttribute('width', '100')
-    await expect(rect).toHaveAttribute('height', '100')
+  test('can create a quadrilateral', async ({ page }) => {
+    const quad = await createQuadrilateral(page)
+    await expect(quad).toHaveCount(1)
+    const points = await quad.getAttribute('points')
+    const pts = points.split(/\s+/).map(p => p.split(',').map(parseFloat))
+    expect(pts[0][0]).toBeCloseTo(100, 0)
+    expect(pts[0][1]).toBeCloseTo(100, 0)
+    expect(pts[2][0]).toBeCloseTo(200, 0)
+    expect(pts[2][1]).toBeCloseTo(200, 0)
   })
 
-  test('can rename a rectangle via sidebar', async ({ page }) => {
-    await createRectangle(page)
-    let entityItem = page.locator('.entity-item').filter({ hasText: 'Rectangle 1' })
+  test('can rename a quadrilateral via sidebar', async ({ page }) => {
+    await createQuadrilateral(page)
+    let entityItem = page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })
     await expect(entityItem).toBeVisible()
 
     await entityItem.dblclick()
     const input = entityItem.locator('input')
     await expect(input).toBeVisible()
-    await input.fill('Renamed Rect')
+    await input.fill('Renamed Quad')
     await input.press('Enter')
 
-    entityItem = page.locator('.entity-item').filter({ hasText: 'Renamed Rect' })
+    entityItem = page.locator('.entity-item').filter({ hasText: 'Renamed Quad' })
     await expect(entityItem).toBeVisible()
-    const rect = page.locator('#shapes-group rect')
-    await expect(rect).toHaveAttribute('data-name', 'Renamed Rect')
+    const quad = page.locator('#shapes-group polygon')
+    await expect(quad).toHaveAttribute('data-name', 'Renamed Quad')
   })
 
-  test('can resize using handles', async ({ page }) => {
-    const rect = await createRectangle(page)
-    await rect.click()
-    await expect(page.locator('#rect-handles-group')).toBeVisible()
+  test('can move a corner using handles', async ({ page }) => {
+    const quad = await createQuadrilateral(page)
+    await quad.click()
+    await expect(page.locator('#quad-handles-group')).toBeVisible()
 
-    const seHandle = page.locator('#rect-handles-group .handle[data-dir="se"]')
+    const seHandle = page.locator('#quad-handles-group .handle[data-dir="se"]')
     const handleBox = await seHandle.boundingBox()
 
     await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
@@ -64,40 +68,24 @@ test.describe('Rectangle Editing', () => {
     await page.mouse.move(handleBox.x + handleBox.width / 2 + 50, handleBox.y + handleBox.height / 2 + 30)
     await page.mouse.up()
 
-    await expect(rect).toHaveAttribute('width', '150')
-    await expect(rect).toHaveAttribute('height', '130')
-  })
-
-  test('can rotate using rotation handle', async ({ page }) => {
-    const rect = await createRectangle(page)
-    await rect.click()
-
-    const rotateHandle = page.locator('#rect-handles-group .rotate-handle')
-    const rotateBox = await rotateHandle.boundingBox()
-
-    await page.mouse.move(rotateBox.x + rotateBox.width / 2, rotateBox.y + rotateBox.height / 2)
-    await page.mouse.down()
-    // Move to the right to rotate ~90 degrees clockwise
-    await page.mouse.move(rotateBox.x + rotateBox.width / 2 + 100, rotateBox.y + rotateBox.height / 2 + 100)
-    await page.mouse.up()
-
-    const rotation = await rect.evaluate(el => el.style.rotate)
-    expect(rotation).toBeTruthy()
-    expect(parseFloat(rotation)).not.toBe(0)
+    const points = await quad.getAttribute('points')
+    const pts = points.split(/\s+/).map(p => p.split(',').map(parseFloat))
+    expect(pts[2][0]).toBeCloseTo(250, 0)
+    expect(pts[2][1]).toBeCloseTo(230, 0)
   })
 
   test('can delete using Delete key', async ({ page }) => {
-    const rect = await createRectangle(page)
-    await rect.click()
+    const quad = await createQuadrilateral(page)
+    await quad.click()
     await page.keyboard.press('Delete')
-    await expect(rect).toHaveCount(0)
-    await expect(page.locator('.entity-item').filter({ hasText: 'Rectangle 1' })).toHaveCount(0)
+    await expect(quad).toHaveCount(0)
+    await expect(page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })).toHaveCount(0)
   })
 
   test('can delete via sidebar "×"', async ({ page }) => {
-    const rect = await createRectangle(page)
-    await expect(rect).toHaveCount(1)
-    await page.locator('.entity-item').filter({ hasText: 'Rectangle 1' }).locator('.delete-btn').click()
-    await expect(rect).toHaveCount(0)
+    const quad = await createQuadrilateral(page)
+    await expect(quad).toHaveCount(1)
+    await page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' }).locator('.delete-btn').click()
+    await expect(quad).toHaveCount(0)
   })
 })
