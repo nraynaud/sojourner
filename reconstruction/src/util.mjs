@@ -1,0 +1,6 @@
+export const $ = (id, context = document) => context.getElementById(id)
+export const createNS = tag => document.createElementNS('http://www.w3.org/2000/svg', tag)
+export const setAttributes = (element, attributes) => Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value))
+export const mapObject = (obj, mapper) => Object.fromEntries(Object.entries(obj).map(([key, value]) => mapper(key, value)))
+export const invokeLater = work => setTimeout(work, 0)
+export const dispatchCustom = (target, evtName, det) => target.dispatchEvent(new CustomEvent(evtName, {detail: det}))

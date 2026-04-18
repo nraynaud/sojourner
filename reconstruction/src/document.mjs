@@ -1,18 +1,6 @@
 import * as shapes from './shapes.mjs'
 import Canny from './canny.mjs'
-
-// Utils
-export const $ = id => document.getElementById(id)
-export const createNS = tag => document.createElementNS('http://www.w3.org/2000/svg', tag)
-export const setAttributes = (element, attributes) => Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value))
-export const mapObject = (obj, mapper) => Object.fromEntries(Object.entries(obj).map(([key, value]) => mapper(key, value)))
-export const invokeLater = work => setTimeout(work, 0)
-export const dispatchCustom = (target, evtName, det) => target.dispatchEvent(new CustomEvent(evtName, {detail: det}))
-
-export function getMousePos (evt, svg) {
-  const c = svg.getScreenCTM()
-  return {x: (evt.clientX - c.e) / c.a, y: (evt.clientY - c.f) / c.d}
-}
+import { $, createNS, setAttributes, dispatchCustom } from './util.mjs'
 
 // indexedDB
 const dbName = 'SvgEditorDB', dbStoreName = 'state'
@@ -35,7 +23,7 @@ async function openDb () {
 }
 
 export class ReconstructionDocument extends EventTarget {
-  constructor (window, ui) {
+  constructor (ui) {
     super()
     Object.assign(this, {
       entities: [],
@@ -47,7 +35,7 @@ export class ReconstructionDocument extends EventTarget {
       svg: $('svg-canvas'),
       undoStack: [],
       redoStack: [],
-      window, ui
+      ui
     })
   }
 
@@ -70,14 +58,12 @@ export class ReconstructionDocument extends EventTarget {
     if (this.undoStack.length === 0) return
     this.redoStack.push(this.getState())
     this._applyData(this.undoStack.pop())
-    this.dispatchEvent(new CustomEvent('stateChanged'))
   }
 
   redo () {
     if (this.redoStack.length === 0) return
     this.undoStack.push(this.getState())
     this._applyData(this.redoStack.pop())
-    this.dispatchEvent(new CustomEvent('stateChanged'))
   }
 
   setBackground (blob, name, skipSave = false) {
@@ -111,7 +97,7 @@ export class ReconstructionDocument extends EventTarget {
       $canny.textContent = 'Canny (Processing...)'
       try {
         console.time('canny processing including worker overhead')
-        const cannyBlob = await (window.Canny || Canny).processAsync(this.bgObjectURL)
+        const cannyBlob = await Canny.processAsync(this.bgObjectURL)
         this.cannyObjectURL = URL.createObjectURL(cannyBlob)
         console.timeEnd('canny processing including worker overhead')
       } catch (e) {
@@ -294,8 +280,6 @@ export class ReconstructionDocument extends EventTarget {
       if (bf) d.backgroundImage = await bf.async('blob')
     }
     this._applyData(d)
-    // activeMode is expected to be global or provided
-    if (typeof activeMode !== 'undefined') activeMode.transitionToSelect()
   }
 
   async loadFromDB () {
@@ -337,6 +321,7 @@ export class ReconstructionDocument extends EventTarget {
       if (ent.type !== 'rect' && ent.type !== 'quad') s.setAttributes(ent.attributes)
       this.addShape(s, true)
     })
+    this.dispatchEvent(new CustomEvent('stateChanged'))
     this.save()
   }
 }

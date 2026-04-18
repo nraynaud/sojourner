@@ -1,3 +1,5 @@
+import {  createNS, setAttributes, mapObject } from './util.mjs'
+
 export class Shape {
   constructor (el) {
     this.el = el

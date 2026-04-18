@@ -70,43 +70,59 @@
     </div>
 </div>
 <script type="module">
+  import { ReconstructionDocument } from './src/document.mjs'
   import * as modes from './src/modes.mjs'
   import * as shapes from './src/shapes.mjs'
   import {
-    ReconstructionDocument,
     $,
-    createNS,
-    setAttributes,
-    mapObject,
     invokeLater,
     dispatchCustom,
-    getMousePos
-  } from './src/document.mjs'
-  import Canny from './src/canny.mjs'
+  } from './src/util.mjs'
 
-  Object.assign(window, {
-    modes,
-    shapes,
-    Canny,
-    $,
-    createNS,
-    setAttributes,
-    mapObject,
-    invokeLater,
-    dispatchCustom,
-    getMousePos
-  })
+  class ActiveModeHolder extends EventTarget {
+    activeMode = null
 
+    constructor (doc, $svg, $zoomGroup) {
+      super()
+      this.doc = doc
+      this.$svg = $svg
+      this.$zoomGroup = $zoomGroup
+      this.setMode(modes.SelectionIdleMode)
+    }
 
-  window.getCurrentZoom = getCurrentZoom
+    setMode (ModeClass, arg) {
+      if (this.activeMode) this.activeMode.deactivate()
+      this.activeMode = new ModeClass(this.doc, this.$svg, this.$zoomGroup, arg)
+      this.activeMode.addEventListener('modeTransition', e => {
+        console.log('modeTransition', e)
+        invokeLater(() => {this.setMode(e.detail.newMode, e.detail.arg)})
+      }, {once: true})
+      if (this.activeMode) {
+        this.activeMode.activate(this)
+      }
+    }
+
+    transitionToSelect (el) {
+      if (el) {
+        let ModeClass = modes.SelectionQuadrilateralMode
+        if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
+        if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
+        dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
+      }
+      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
+    }
+  }
 
   class UIObject {
+    constructor () {
+    }
+
     getCurrentZoom () {
       return parseFloat($svg.style.getPropertyValue('--zoom-level')) || 1
     }
 
     zoom (factor, center) {
-      let currentZoom = getCurrentZoom()
+      let currentZoom = this.getCurrentZoom()
       let newZoom = currentZoom * factor
       if (factor === 0) {
         newZoom = 1
@@ -128,46 +144,13 @@
     }
   }
 
-  class ActiveModeHolder extends EventTarget {
-    activeMode = null
-
-    constructor (doc, $svg) {
-      super()
-      this.doc = doc
-      this.$svg = $svg
-      this.setMode(modes.SelectionIdleMode)
-    }
-
-    setMode (ModeClass, arg) {
-      if (this.activeMode) this.activeMode.deactivate()
-      this.activeMode = new ModeClass(this.doc, this.$svg, $zoomGroup, arg)
-      this.activeMode.addEventListener('modeTransition', e => {
-        console.log('modeTransition', e)
-        invokeLater(() => {this.setMode(e.detail.newMode, e.detail.arg)})
-      }, {once: true})
-      if (this.activeMode) {
-        this.activeMode.activate(this)
-      }
-    }
-
-    transitionToSelect (el) {
-      if (el) {
-        let ModeClass = modes.SelectionQuadrilateralMode
-        if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
-        if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
-        dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
-      }
-      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
-    }
-  }
-
   console.log('Script loaded')
   const ui = new UIObject()
-  let doc = new ReconstructionDocument(window, ui)
+  let doc = new ReconstructionDocument(ui)
   let $svg = $('svg-canvas')
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
-  let activeMode = new ActiveModeHolder(doc, $svg)
+  let activeMode = new ActiveModeHolder(doc, $svg, $zoomGroup)
 
   doc.loadFromDB().then(async () => {
     if (!doc.backgroundImage) {
@@ -179,7 +162,7 @@
   $viewport.addEventListener('wheel', e => {
     if (e.ctrlKey) {
       e.preventDefault()
-      zoom(e.deltaY < 0 ? 1.05 : 0.95, getMousePos(e, $zoomGroup))
+      ui.zoom(e.deltaY < 0 ? 1.05 : 0.95, modes.getMousePos(e, $zoomGroup))
     }
   }, {passive: false})
 
@@ -194,32 +177,6 @@
       doc.redo()
     }
   })
-
-  export function getCurrentZoom () {
-    return parseFloat($svg.style.getPropertyValue('--zoom-level')) || 1
-  }
-
-  export function zoom (factor, center) {
-    let currentZoom = getCurrentZoom()
-    let newZoom = currentZoom * factor
-    if (factor === 0) {
-      newZoom = 1
-    }
-    else {
-      const {w, h} = doc.getBackgroundSize()
-      const rect = $viewport.getBoundingClientRect()
-      let minZoom = Math.min(rect.width / w, rect.height / h)
-      newZoom = Math.max(minZoom, newZoom)
-    }
-    if (newZoom === currentZoom)
-      return
-    $svg.style.setProperty('--zoom-level', '' + newZoom)
-    if (center) {
-      $viewport.scrollLeft += center.x * (newZoom - currentZoom)
-      $viewport.scrollTop += center.y * (newZoom - currentZoom)
-    }
-    doc.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
-  }
 
   function handleBgChange (e) {
     const f = e.target.files[0]
@@ -241,9 +198,9 @@
     'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
     'vertex-btn': () => activeMode.setMode(modes.DrawVertexMode),
     'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),
-    'zoom-in-btn': () => zoom(1.1),
-    'zoom-out-btn': () => zoom(0.9),
-    'zoom-reset-btn': () => zoom(0),
+    'zoom-in-btn': () => ui.zoom(1.1),
+    'zoom-out-btn': () => ui.zoom(0.9),
+    'zoom-reset-btn': () => ui.zoom(0),
     'bg-btn': () => $('bg-input').click(),
     'undo-btn': () => doc.undo(),
     'redo-btn': () => doc.redo(),

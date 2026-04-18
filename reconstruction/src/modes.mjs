@@ -1,4 +1,10 @@
 import { EllipseShape, QuadrilateralShape, VertexShape } from './shapes.mjs'
+import { $, dispatchCustom } from './util.mjs'
+
+export function getMousePos (evt, svg) {
+  const c = svg.getScreenCTM()
+  return {x: (evt.clientX - c.e) / c.a, y: (evt.clientY - c.f) / c.d}
+}
 
 /**
  * Represents the UI Mode of operation.
@@ -52,8 +58,8 @@ class BaseDrawingMode extends Mode {
     const shapeId = this.doc.nextEntityId()
     this.currentElement = this.createShape(`entity-${shapeId}`, pos, shapeId)
     this.doc.addShape(this.currentElement)
-    this.listen(this.doc.window, 'mousemove', this._move = e => this.onMouseMove(e))
-    this.listen(this.doc.window, 'mouseup', this._up = e => this.onMouseUp(e))
+    this.listen(window, 'mousemove', this._move = e => this.onMouseMove(e))
+    this.listen(window, 'mouseup', this._up = e => this.onMouseUp(e))
   }
 
   onMouseMove (e) { this.updateShape(getMousePos(e, this.$zoomGroup)) }
