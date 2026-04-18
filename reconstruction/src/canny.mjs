@@ -1,4 +1,4 @@
-import WabtModule from './lib/libwabt.js'
+import WabtModule from '../lib/libwabt.js'
 
 export default class Canny {
   static wasmMemory = null
@@ -15,7 +15,7 @@ export default class Canny {
       const wabt = await WabtModule({
         locateFile: (url) => {
           if (url.endsWith('.wasm')) {
-            return new URL('./lib/' + url, import.meta.url).href
+            return new URL('../lib/' + url, import.meta.url).href
           }
           return url
         }
@@ -134,7 +134,7 @@ export default class Canny {
    * @param {string} [workerScript='canny-worker.mjs'] - Path to the worker script.
    * @returns {Promise<Blob>} - A promise that resolves with the new Blob.
    */
-  static async processAsync (source, options = {}, workerScript = 'canny.mjs') {
+  static async processAsync (source, options = {}, workerScript = './src/canny.mjs') {
     return new Promise((resolve, reject) => {
       const worker = new Worker(workerScript, {type: 'module'})
       worker.onmessage = e => {
