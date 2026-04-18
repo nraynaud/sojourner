@@ -4,6 +4,7 @@ export class Shape {
   constructor (el) {
     this.el = el
     this.id = el.id
+    this.geometries = {} // imageId -> geometry
   }
 
   get name () { return this.el.getAttribute('data-name') }
@@ -28,6 +29,30 @@ export class Shape {
 
   updateResize (rect, lDx, lDy, dir) {}
 
+  applyGeometry (geometry) {
+    if (geometry.rotate) this.el.style.rotate = geometry.rotate
+    this.setAttributes(geometry.attributes)
+  }
+
+  recordGeometry (imageId) {
+    this.geometries[imageId] = {
+      attributes: this.getAttributes(),
+      rotate: this.el.style.rotate
+    }
+  }
+
+  createDefaultGeometry (pos) {
+    return {
+      attributes: {
+        x: pos.x - 50,
+        y: pos.y - 50,
+        width: 100,
+        height: 100
+      },
+      rotate: '0deg'
+    }
+  }
+
   toJSON () {throw 'toJSON must be implemented'}
 }
 
@@ -44,6 +69,26 @@ export class QuadrilateralShape extends Shape {
     super(el)
   }
 
+  applyGeometry (geometry) {
+    this.setPoints(geometry.points)
+  }
+
+  recordGeometry (imageId) {
+    this.geometries[imageId] = {
+      points: this.getPoints()
+    }
+  }
+
+  createDefaultGeometry (pos) {
+    const x = pos.x, y = pos.y
+    return {
+      points: [
+        {x: x - 50, y: y - 50}, {x: x + 50, y: y - 50},
+        {x: x + 50, y: y + 50}, {x: x - 50, y: y + 50}
+      ]
+    }
+  }
+
   getPoints () {
     const pts = this.el.getAttribute('points').split(/\s+/).filter(p => p)
     return pts.map(p => {
@@ -53,7 +98,11 @@ export class QuadrilateralShape extends Shape {
   }
 
   setPoints (points) {
-    this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
+    if (Array.isArray(points)) {
+        this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
+    } else if (typeof points === 'string') {
+        this.el.setAttribute('points', points)
+    }
   }
 
   getCenter () {
@@ -62,7 +111,7 @@ export class QuadrilateralShape extends Shape {
   }
 
   toJSON () {
-    return {type: 'quad', id: this.id, name: this.name, attributes: this.getAttributes()}
+    return {type: 'quad', id: this.id, name: this.name, geometries: this.geometries}
   }
 
   getAttributes () {
@@ -172,8 +221,16 @@ export class EllipseShape extends Shape {
       type: 'ellipse',
       id: this.id,
       name: this.name,
-      rotate: this.el.style.rotate,
-      attributes: this.getAttributes()
+      geometries: this.geometries
+    }
+  }
+
+  createDefaultGeometry (pos) {
+    return {
+      attributes: {
+        cx: pos.x, cy: pos.y, rx: 50, ry: 50
+      },
+      rotate: '0deg'
     }
   }
 }
@@ -190,6 +247,16 @@ export class VertexShape extends Shape {
       class: 'shape vertex-shape'
     })
     super(el)
+  }
+
+  applyGeometry (geometry) {
+    this.setAttributes(geometry.attributes)
+  }
+
+  recordGeometry (imageId) {
+    this.geometries[imageId] = {
+      attributes: this.getAttributes()
+    }
   }
 
   setAttributes (attrs) {
@@ -227,7 +294,18 @@ export class VertexShape extends Shape {
 
   toJSON () {
     return {
-      type: 'vertex', id: this.id, name: this.name, attributes: this.getAttributes()
+      type: 'vertex',
+      id: this.id,
+      name: this.name,
+      geometries: this.geometries
+    }
+  }
+
+  createDefaultGeometry (pos) {
+    return {
+      attributes: {
+        x: pos.x, y: pos.y
+      }
     }
   }
 }

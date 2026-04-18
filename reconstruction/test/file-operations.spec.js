@@ -57,22 +57,37 @@ test.describe('File operations', () => {
       const docData = {
         entities: [
           {
-            type: 'rect',
+            type: 'quad',
             id: 'Rect1',
             name: 'Loaded Rect',
-            attributes: { x: 10, y: 10, width: 100, height: 50, fill: 'red' }
+            geometries: {
+              'img-1': {
+                points: [
+                  {x: 10, y: 10}, {x: 110, y: 10},
+                  {x: 110, y: 60}, {x: 10, y: 60}
+                ]
+              }
+            }
           }
         ],
         entityCount: 1,
-        backgroundName: 'test-bg.jpg'
+        images: [
+          {
+            id: 'img-1',
+            name: 'test-bg.jpg',
+            cannyEnabled: false
+          }
+        ],
+        currentImageId: 'img-1'
       }
       z.file('document.json', JSON.stringify(docData))
+      const imgFolder = z.folder('images')
       // Create a tiny dummy image
       const canvas = document.createElement('canvas')
       canvas.width = 2
       canvas.height = 2
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'))
-      z.file('test-bg.jpg', blob)
+      imgFolder.file('img-1', blob)
       
       const zipBlob = await z.generateAsync({type: 'blob'})
       return new Uint8Array(await zipBlob.arrayBuffer())
@@ -96,10 +111,12 @@ test.describe('File operations', () => {
     await expect(shapesGroup.locator('polygon')).toHaveAttribute('points', /10,10/)
     
     const entityList = page.locator('#entity-list')
-    // Background + Rectangle = 2 items
-    await expect(entityList.locator('.entity-item')).toHaveCount(2)
-    await expect(entityList.locator('.entity-item', { hasText: 'Background: test-bg.jpg' })).toBeVisible()
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
     await expect(entityList.locator('.entity-item', { hasText: 'Loaded Rect' })).toBeVisible()
+
+    const imageList = page.locator('#image-list')
+    await expect(imageList.locator('.entity-item')).toHaveCount(1)
+    await expect(imageList.locator('.entity-item', { hasText: 'test-bg.jpg' })).toBeVisible()
 
     // Also verify background in SVG
     const backgroundGroup = page.locator('#background-group')

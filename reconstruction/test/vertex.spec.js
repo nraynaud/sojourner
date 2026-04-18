@@ -38,7 +38,7 @@ test.describe('Vertex Shape', () => {
     expect(Math.round(parseFloat(y))).toBe(100)
 
     // Check entity list
-    await expect(entityList.locator('.entity-item')).toHaveCount(2) // background + vertex
+    await expect(entityList.locator('.entity-item')).toHaveCount(1) // vertex only (background is in image-list)
 
     // Switch to Select mode and select vertex
     await page.click('#select-btn')

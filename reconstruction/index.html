@@ -17,7 +17,7 @@
     <button id="zoom-in-btn">Zoom +</button>
     <button id="zoom-out-btn">Zoom -</button>
     <button id="zoom-reset-btn">Reset Zoom</button>
-    <button id="bg-btn">Set Background</button>
+    <button id="bg-btn">Add Image</button>
     <input type="file" id="bg-input" accept="image/*" style="display: none;">
     <button id="undo-btn">Undo</button>
     <button id="redo-btn">Redo</button>
@@ -25,11 +25,12 @@
     <button id="load-btn">Load (Zip)</button>
     <input type="file" id="load-input" accept=".zip" style="display: none;">
     <button id="canny-btn">Canny</button>
-    <span id="status">Mode: Rectangle</span>
 </div>
 
 <div id="main-container">
     <div id="left-panel">
+        <h3 class="panel-header">Images</h3>
+        <div id="image-list"></div>
         <h3 class="panel-header">Entities</h3>
         <div id="entity-list"></div>
     </div>
@@ -68,6 +69,11 @@
             </g>
         </svg>
     </div>
+</div>
+
+<div id="status-bar">
+    <div id="status-mode">Mode: Rectangle</div>
+    <div id="status-actions"></div>
 </div>
 <script type="module">
   import { ReconstructionDocument } from './src/document.mjs'
@@ -111,6 +117,19 @@
       }
       else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
     }
+
+    handleDrop (id, pos) {
+      const shape = this.doc.entities.find(s => s.id === id)
+      if (!shape) return
+      if (!this.doc.currentImageId) return
+      if (!shape.geometries[this.doc.currentImageId]) {
+        this.doc.pushState()
+        shape.geometries[this.doc.currentImageId] = shape.createDefaultGeometry(pos)
+        this.doc.save()
+        this.doc._updateShapesVisibility()
+      }
+      this.transitionToSelect(shape)
+    }
   }
 
   class UIObject {
@@ -153,9 +172,9 @@
   let activeMode = new ActiveModeHolder(doc, $svg, $zoomGroup)
 
   doc.loadFromDB().then(async () => {
-    if (!doc.backgroundImage) {
+    if (doc.images.length === 0) {
       const blob = await (await fetch('images/default-bg.jpg')).blob()
-      doc.setBackground(blob, 'default-bg.jpg')
+      await doc.addImage(blob, 'default-bg.jpg')
     }
     window.addEventListener('beforeunload', () => doc.save())
   })
@@ -165,6 +184,18 @@
       ui.zoom(e.deltaY < 0 ? 1.05 : 0.95, modes.getMousePos(e, $zoomGroup))
     }
   }, {passive: false})
+
+  $svg.addEventListener('dragover', e => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  })
+
+  $svg.addEventListener('drop', e => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('text/plain')
+    const pos = modes.getMousePos(e, $zoomGroup)
+    activeMode.handleDrop(id, pos)
+  })
 
   window.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -179,8 +210,10 @@
   })
 
   function handleBgChange (e) {
-    const f = e.target.files[0]
-    if (f) doc.setBackground(f, f.name)
+    for (const f of e.target.files) {
+      doc.addImage(f, f.name)
+    }
+    e.target.value = ''
   }
 
   async function handleLoadFile (e) {
@@ -201,7 +234,11 @@
     'zoom-in-btn': () => ui.zoom(1.1),
     'zoom-out-btn': () => ui.zoom(0.9),
     'zoom-reset-btn': () => ui.zoom(0),
-    'bg-btn': () => $('bg-input').click(),
+    'bg-btn': () => {
+        const input = $('bg-input');
+        input.multiple = true;
+        input.click();
+    },
     'undo-btn': () => doc.undo(),
     'redo-btn': () => doc.redo(),
     'save-btn': () => doc.saveToFile(),

@@ -26,10 +26,21 @@ class Mode extends EventTarget {
   activate (holder) {
     this.holder = holder
     if (this.activationSelector) $(this.activationSelector).classList.toggle('active', true)
-    let $status = $('status')
-    if ($status) $status.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
+    this.updateStatus()
     this.svg.classList.add(this.name)
     this.listen(this.doc, 'sidebarShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
+    this.listen(this.doc, 'requestDefaultStatus', () => this.updateStatus())
+  }
+
+  updateStatus (actions = '') {
+    const $mode = $('status-mode')
+    const $actions = $('status-actions')
+    if ($mode) $mode.textContent = `Mode: ${this.name[0].toUpperCase() + this.name.slice(1)}`
+    if ($actions) $actions.textContent = actions || this.getDefaultActions()
+  }
+
+  getDefaultActions () {
+    return ''
   }
 
   deactivate () {
@@ -66,7 +77,7 @@ class BaseDrawingMode extends Mode {
 
   onMouseUp (_e) {
     const el = this.currentElement
-    this.doc.save()
+    this.doc.saveShapeGeometry(el)
     let ModeClass = SelectionQuadrilateralMode
     if (el instanceof EllipseShape) ModeClass = SelectionEllipseMode
     dispatchCustom(this, 'modeTransition', {newMode: ModeClass, arg: el})
@@ -79,14 +90,19 @@ export class DrawQuadrilateralMode extends BaseDrawingMode {
     this.activationSelector = 'rect-btn'
   }
 
-  createShape (id, start, label) { return new QuadrilateralShape(id, start, label) }
+  createShape (id, pos, label) {
+    return new QuadrilateralShape(id, pos, label)
+  }
 
   updateShape (pos) {
-    const x1 = this.startPoint.x, y1 = this.startPoint.y
-    const x2 = pos.x, y2 = pos.y
     this.currentElement.setPoints([
-      {x: x1, y: y1}, {x: x2, y: y1}, {x: x2, y: y2}, {x: x1, y: y2}
+      this.startPoint, {x: pos.x, y: this.startPoint.y},
+      pos, {x: this.startPoint.x, y: pos.y}
     ])
+  }
+
+  getDefaultActions () {
+    return 'Click and drag to draw a quadrilateral.'
   }
 }
 
@@ -96,13 +112,20 @@ export class DrawEllipseMode extends BaseDrawingMode {
     this.activationSelector = 'ellipse-btn'
   }
 
-  createShape (id, start, count) { return new EllipseShape(id, start, count) }
+  createShape (id, pos, label) {
+    return new EllipseShape(id, pos, label)
+  }
 
   updateShape (pos) {
-    const w = pos.x - this.startPoint.x, h = pos.y - this.startPoint.y
-    this.currentElement.setAttributes({
-      cx: this.startPoint.x + w / 2, cy: this.startPoint.y + h / 2, rx: Math.abs(w) / 2, ry: Math.abs(h) / 2
-    })
+    const rx = Math.abs(pos.x - this.startPoint.x) / 2
+    const ry = Math.abs(pos.y - this.startPoint.y) / 2
+    const cx = (pos.x + this.startPoint.x) / 2
+    const cy = (pos.y + this.startPoint.y) / 2
+    this.currentElement.setAttributes({cx, cy, rx, ry})
+  }
+
+  getDefaultActions () {
+    return 'Click and drag to draw an ellipse.'
   }
 }
 
@@ -119,8 +142,13 @@ export class DrawVertexMode extends Mode {
       const shapeId = this.doc.nextEntityId()
       const newElement = new VertexShape(`entity-${shapeId}`, getMousePos(e, this.$zoomGroup), shapeId)
       this.doc.addShape(newElement)
+      this.doc.saveShapeGeometry(newElement)
       dispatchCustom(this, 'modeTransition', {newMode: SelectionVertexMode, arg: newElement})
     })
+  }
+
+  getDefaultActions () {
+    return 'Click anywhere to place a vertex.'
   }
 }
 
@@ -142,6 +170,25 @@ export class SelectionIdleMode extends Mode {
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
     }
+
+    const updateActions = (e) => {
+      const shapeEl = e.target.closest('.shape')
+      if (shapeEl) {
+        const shapeId = shapeEl.id
+        const shape = this.doc.entities.find(s => s.id === shapeId)
+        if (shape) {
+          this.updateStatus(`Click to select ${shape.name || shape.id}.`)
+          return
+        }
+      }
+      this.updateStatus()
+    }
+    this.listen(this.svg, 'mouseover', updateActions)
+    this.listen(this.svg, 'mouseout', () => this.updateStatus())
+  }
+
+  getDefaultActions () {
+    return 'Click a shape to select it, or drag entities from the panel.'
   }
 }
 
@@ -189,10 +236,11 @@ export class SelectionQuadrilateralMode extends Mode {
     this.listen(window, 'mouseup', (_e) => {
       if (this.isDraggingVertex) {
         if (this.selectedElement) {
-          this.doc.save()
+          this.doc.saveShapeGeometry(this.selectedElement)
         }
         this.isDraggingVertex = false
         document.body.style.cursor = ''
+        this.updateStatus()
       }
     })
     this.listen(window, 'keydown', (e) => {
@@ -220,12 +268,35 @@ export class SelectionQuadrilateralMode extends Mode {
         document.body.style.cursor = window.getComputedStyle(e.currentTarget).cursor
         this.startPoint = getMousePos(e, this.$zoomGroup)
         this.initialRect = this.selectedElement.getInitialRect()
+        this.updateStatus(`Dragging vertex ${this.resizeDir}.`)
       })
     })
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
     }
+
+    const updateActions = (e) => {
+      if (this.isDraggingVertex) return
+      const handle = e.target.closest('.handle')
+      if (handle) {
+        this.updateStatus(`Drag to move vertex ${handle.getAttribute('data-dir')}.`)
+        return
+      }
+      const shapeEl = e.target.closest('.shape')
+      if (shapeEl && shapeEl.id !== this.selectedElement.id) {
+        const shape = this.doc.entities.find(s => s.id === shapeEl.id)
+        this.updateStatus(`Click to select ${shape ? shape.name : shapeEl.id}.`)
+        return
+      }
+      this.updateStatus()
+    }
+    this.listen(this.svg, 'mouseover', updateActions)
+    this.listen(this.svg, 'mouseout', () => { if (!this.isDraggingVertex) this.updateStatus() })
+  }
+
+  getDefaultActions () {
+    return 'Drag vertices to reshape. Press Del to delete.'
   }
 
   deactivate () {
@@ -276,6 +347,7 @@ export class SelectionEllipseMode extends Mode {
     const pos = getMousePos(e, this.$zoomGroup), c = this.selectedElement.getCenter()
     this.initialRotation = this.selectedElement.getRotation()
     this.startAngle = Math.atan2(pos.y - c.y, pos.x - c.x) * 180 / Math.PI
+    this.updateStatus('Rotating ellipse.')
   }
 
   resizeHandleMousedown (e) {
@@ -307,6 +379,7 @@ export class SelectionEllipseMode extends Mode {
         }
       })
     }
+    this.updateStatus(`Resizing ellipse via ${this.resizeDir} handle.`)
   }
 
   _keyHandler (e) {
@@ -384,10 +457,11 @@ export class SelectionEllipseMode extends Mode {
   _up (_e) {
     if (this.isRotating || this.isResizing) {
       if (this.selectedElement) {
-        this.doc.save()
+        this.doc.saveShapeGeometry(this.selectedElement)
       }
       this.isRotating = this.isResizing = false
       document.body.style.cursor = ''
+      this.updateStatus()
     }
     if (!this.isRotating && !this.isResizing) {
       this.activeEllipseHandle = null
@@ -426,6 +500,33 @@ export class SelectionEllipseMode extends Mode {
     if (this.doc.bgListItem) {
       this.listen(this.doc.bgListItem, 'mousedown', (e) => e.stopPropagation())
     }
+
+    const updateActions = (e) => {
+      if (this.isRotating || this.isResizing) return
+      const handle = e.target.closest('.handle, .ellipse-handle')
+      if (handle) {
+        this.updateStatus(`Drag to resize ellipse via ${handle.getAttribute('data-ellipse-dir') || handle.getAttribute('data-dir')} handle.`)
+        return
+      }
+      const rotateHandle = e.target.closest('.rotate-handle')
+      if (rotateHandle) {
+        this.updateStatus('Drag to rotate ellipse.')
+        return
+      }
+      const shapeEl = e.target.closest('.shape')
+      if (shapeEl && shapeEl.id !== this.selectedElement.id) {
+        const shape = this.doc.entities.find(s => s.id === shapeEl.id)
+        this.updateStatus(`Click to select ${shape ? shape.name : shapeEl.id}.`)
+        return
+      }
+      this.updateStatus()
+    }
+    this.listen(this.svg, 'mouseover', updateActions)
+    this.listen(this.svg, 'mouseout', () => { if (!this.isRotating && !this.isResizing) this.updateStatus() })
+  }
+
+  getDefaultActions () {
+    return 'Drag handles to resize or rotate. Press Del to delete.'
   }
 
   deactivate () {
@@ -460,6 +561,7 @@ export class SelectionVertexMode extends Mode {
       e.stopPropagation()
       this.doc.pushState()
       this.isTranslating = true
+      this.updateStatus(`Translating vertex ${s.name || s.id}.`)
     })
     this.listen(window, 'mousemove', (e) => {
       const pos = getMousePos(e, this.$zoomGroup)
@@ -469,6 +571,7 @@ export class SelectionVertexMode extends Mode {
       if (this.isTranslating) {
         this.doc.save()
         this.isTranslating = false
+        this.updateStatus()
       }
     })
     this.listen(window, 'keydown', (e) => {
@@ -484,6 +587,27 @@ export class SelectionVertexMode extends Mode {
       else holder.transitionToSelect()
     })
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
+
+    const updateActions = (e) => {
+      if (this.isTranslating) return
+      const shapeEl = e.target.closest('.shape')
+      if (shapeEl) {
+        if (shapeEl.id === s.id) {
+          this.updateStatus('Drag to move vertex.')
+        } else {
+          const shape = this.doc.entities.find(s => s.id === shapeEl.id)
+          this.updateStatus(`Click to select ${shape ? shape.name : shapeEl.id}.`)
+        }
+        return
+      }
+      this.updateStatus()
+    }
+    this.listen(this.svg, 'mouseover', updateActions)
+    this.listen(this.svg, 'mouseout', () => { if (!this.isTranslating) this.updateStatus() })
+  }
+
+  getDefaultActions () {
+    return 'Drag the vertex to move it. Press Del to delete.'
   }
 
   deactivate () {
