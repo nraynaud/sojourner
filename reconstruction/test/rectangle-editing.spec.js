@@ -74,12 +74,21 @@ test.describe('Quadrilateral Editing', () => {
     expect(pts[2][1]).toBeCloseTo(230, 0)
   })
 
-  test('can delete using Delete key', async ({ page }) => {
+  test('can delete using Delete key (removes from current image)', async ({ page }) => {
     const quad = await createQuadrilateral(page)
     await quad.click()
     await page.keyboard.press('Delete')
     await expect(quad).toHaveCount(0)
-    await expect(page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })).toHaveCount(0)
+    // Should still exist in entity list because it's only removed from current image
+    await expect(page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })).toHaveCount(1)
+  })
+
+  test('can delete via sidebar "⊖" (removes from current image)', async ({ page }) => {
+    const quad = await createQuadrilateral(page)
+    await expect(quad).toHaveCount(1)
+    await page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' }).locator('.remove-btn').click()
+    await expect(quad).toHaveCount(0)
+    await expect(page.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })).toHaveCount(1)
   })
 
   test('can delete via sidebar "×"', async ({ page }) => {

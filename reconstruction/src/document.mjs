@@ -181,10 +181,25 @@ export class ReconstructionDocument extends EventTarget {
     this.entities.forEach(shape => {
       const geometry = shape.geometries[this.currentImageId]
       if (geometry) {
+        if (!this.shapesGroup.contains(shape.el)) this.shapesGroup.appendChild(shape.el)
         shape.el.style.display = ''
         shape.applyGeometry(geometry)
-      } else {
-        shape.el.style.display = 'none'
+      }
+      else {
+        if (this.shapesGroup.contains(shape.el)) shape.el.remove()
+      }
+    })
+    this.updateEntityUI()
+  }
+
+  updateEntityUI () {
+    this.entities.forEach(shape => {
+      const item = this.entityItemsMap.get(shape)
+      if (item) {
+        const removeBtn = item.querySelector('.remove-btn')
+        if (removeBtn) {
+          removeBtn.style.display = shape.geometries[this.currentImageId] ? 'block' : 'none'
+        }
       }
     })
   }
@@ -194,10 +209,9 @@ export class ReconstructionDocument extends EventTarget {
     this.images.forEach(img => {
       const item = document.createElement('div')
       item.className = 'entity-item' + (img.id === this.currentImageId ? ' selected' : '')
-      item.innerHTML = `<div class="drag-handle">⋮</div><div class="name-label">${img.name}</div><div class="delete-btn">×</div>`
+      item.setAttribute('data-status', `Click to switch to image: ${img.name}`)
+      item.innerHTML = `<div class="drag-handle">⋮</div><div class="name-label">${img.name}</div><div class="delete-btn" data-status="Delete image from project.">×</div>`
       item.onclick = () => this.switchImage(img.id)
-      item.onmouseover = () => this.updateStatus(`Click to switch to image: ${img.name}`)
-      item.onmouseout = () => this.updateStatus()
       item.querySelector('.delete-btn').onclick = (e) => {
         e.stopPropagation()
         this.removeImage(img.id)
@@ -246,7 +260,8 @@ export class ReconstructionDocument extends EventTarget {
     item.className = 'entity-item'
     item.setAttribute('data-id', id)
     item.setAttribute('draggable', 'true')
-    item.innerHTML = `<div class="drag-handle">⋮</div><div class="name-label">${shape.name || id}</div><input id="entity-name-${id}" type="text" value="${shape.name || id}"><div class="delete-btn">×</div>`
+    item.setAttribute('data-status', 'Click to select. Drag to canvas to add to current image.')
+    item.innerHTML = `<div class="drag-handle">⋮</div><div class="name-label">${shape.name || id}</div><input id="entity-name-${id}" type="text" value="${shape.name || id}"><div class="remove-btn" title="Remove from current image" data-status="Remove shape from current image.">⊖</div><div class="delete-btn" title="Delete from project" data-status="Delete shape from all images.">×</div>`
     item.onclick = (e) => {
       e.stopPropagation()
       this.dispatchEvent(new CustomEvent('sidebarShapeClick', {detail: {shape}}))
@@ -256,19 +271,22 @@ export class ReconstructionDocument extends EventTarget {
       e.dataTransfer.effectAllowed = 'copyMove'
     }
     item.onmouseover = () => {
-      this.updateStatus(`Click to select. Drag to canvas to add to current image.`)
       this.ui.highlightShape(shape.id)
     }
     item.onmouseout = () => {
-      this.updateStatus()
       this.ui.highlightShape()
     }
     const label = item.querySelector('.name-label'), input = item.querySelector('input'),
-      del = item.querySelector('.delete-btn')
+      del = item.querySelector('.delete-btn'), remove = item.querySelector('.remove-btn')
     del.onclick = (e) => {
       e.stopPropagation()
       this.deleteShape(shape)
     }
+    remove.onclick = (e) => {
+      e.stopPropagation()
+      this.removeShapeGeometry(shape)
+    }
+    remove.style.display = shape.geometries[this.currentImageId] ? 'block' : 'none'
     const finish = () => {
       const newName = input.value.trim() || id
       if (newName !== (shape.name || id)) {
@@ -313,11 +331,14 @@ export class ReconstructionDocument extends EventTarget {
     })
   }
 
-  updateStatus (actions = '') {
-    const $actions = $('status-actions')
-    if ($actions) $actions.textContent = actions
-    if (!actions) {
-      this.dispatchEvent(new CustomEvent('requestDefaultStatus'))
+  removeShapeGeometry (shape) {
+    if (this.currentImageId && shape.geometries[this.currentImageId]) {
+      this.pushState()
+      delete shape.geometries[this.currentImageId]
+      this._updateShapesVisibility()
+      this.updateEntityUI()
+      dispatchCustom(this, 'stateChanged')
+      this.save()
     }
   }
 

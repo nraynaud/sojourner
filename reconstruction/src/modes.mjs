@@ -30,6 +30,17 @@ class Mode extends EventTarget {
     this.svg.classList.add(this.name)
     this.listen(this.doc, 'sidebarShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
     this.listen(this.doc, 'requestDefaultStatus', () => this.updateStatus())
+    this.listen(window, 'mouseover', (e) => {
+      const status = e.target.closest('[data-status]')
+      if (status) {
+        this.updateStatus(status.getAttribute('data-status'))
+      }
+    }, true)
+    this.listen(window, 'mouseout', (e) => {
+      if (e.target.closest('[data-status]')) {
+        this.updateStatus()
+      }
+    }, true)
   }
 
   updateStatus (actions = '') {
@@ -245,7 +256,7 @@ export class SelectionQuadrilateralMode extends Mode {
     })
     this.listen(window, 'keydown', (e) => {
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        this.doc.deleteShape(this.selectedElement)
+        this.doc.removeShapeGeometry(this.selectedElement)
       }
     })
     this.listen(this.doc, 'deleteShape', (e) => {
@@ -253,7 +264,7 @@ export class SelectionQuadrilateralMode extends Mode {
     })
     this.listen(this.doc, 'stateChanged', () => {
       const s_ = this.doc.entities.find(e => e.id === this.selectedElement.id)
-      if (s_) {
+      if (s_ && s_.geometries[this.doc.currentImageId]) {
         this.selectedElement = s_
         this.updateHandles()
       }
@@ -296,7 +307,7 @@ export class SelectionQuadrilateralMode extends Mode {
   }
 
   getDefaultActions () {
-    return 'Drag vertices to reshape. Press Del to delete.'
+    return 'Drag vertices to reshape. Press Del or Backspace to delete.'
   }
 
   deactivate () {
@@ -384,7 +395,7 @@ export class SelectionEllipseMode extends Mode {
 
   _keyHandler (e) {
     if ((e.key === 'Delete' || e.key === 'Backspace')) {
-      this.doc.deleteShape(this.selectedElement)
+      this.doc.removeShapeGeometry(this.selectedElement)
     }
   }
 
@@ -485,7 +496,7 @@ export class SelectionEllipseMode extends Mode {
     })
     this.listen(this.doc, 'stateChanged', () => {
       const s_ = this.doc.entities.find(e => e.id === this.selectedElement.id)
-      if (s_) {
+      if (s_ && s_.geometries[this.doc.currentImageId]) {
         this.selectedElement = s_
         this.updateHandles()
       }
@@ -526,7 +537,7 @@ export class SelectionEllipseMode extends Mode {
   }
 
   getDefaultActions () {
-    return 'Drag handles to resize or rotate. Press Del to delete.'
+    return 'Drag handles to resize or rotate. Press Del or Backspace to delete.'
   }
 
   deactivate () {
@@ -575,7 +586,7 @@ export class SelectionVertexMode extends Mode {
       }
     })
     this.listen(window, 'keydown', (e) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') this.doc.deleteShape(this.selectedElement)
+      if (e.key === 'Delete' || e.key === 'Backspace') this.doc.removeShapeGeometry(this.selectedElement)
       if (e.key === 'Escape') holder.transitionToSelect()
     })
     this.listen(this.doc, 'deleteShape', (e) => {
@@ -583,7 +594,7 @@ export class SelectionVertexMode extends Mode {
     })
     this.listen(this.doc, 'stateChanged', () => {
       const s_ = this.doc.entities.find(e => e.id === s.id)
-      if (s_) {s = this.selectedElement = s_}
+      if (s_ && s_.geometries[this.doc.currentImageId]) {s = this.selectedElement = s_}
       else holder.transitionToSelect()
     })
     this.listen(this.doc, 'canvasShapeClick', (e) => holder.transitionToSelect(e.detail.shape))
@@ -607,7 +618,7 @@ export class SelectionVertexMode extends Mode {
   }
 
   getDefaultActions () {
-    return 'Drag the vertex to move it. Press Del to delete.'
+    return 'Drag the vertex to move it. Press Del or Backspace to delete.'
   }
 
   deactivate () {

@@ -85,7 +85,7 @@ button.active {
     text-overflow: ellipsis;
 }
 
-.entity-item .delete-btn {
+.entity-item .delete-btn, .entity-item .remove-btn {
     display: block;
     cursor: pointer;
     color: #ccc;
@@ -93,11 +93,11 @@ button.active {
     padding: 0 5px;
 }
 
-.entity-item:hover .delete-btn {
+.entity-item:hover .delete-btn, .entity-item:hover .remove-btn {
     color: #dc3545;
 }
 
-.entity-item .delete-btn:hover {
+.entity-item .delete-btn:hover, .entity-item .remove-btn:hover {
     color: #a71d2a;
 }
 
