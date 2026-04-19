@@ -45,13 +45,14 @@
                     <line stroke="#28a745" stroke-width="1" x1="0" y1="-20" x2="0" y2="0"/>
                     <circle cx="0" cy="-20" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
                 </symbol>
-                <symbol id="vertex-icon" class="ignoreZoom" viewBox="-4 -4 8 8" height="8" width="8" x="-4" y="-4">
+                <symbol id="vertex-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
                     <circle cx="0" cy="0" r="3" fill="red"/>
                 </symbol>
             </defs>
             <g id="zoom-group">
                 <g id="background-group"></g>
                 <g id="shapes-group"></g>
+                <use id="hover-overlay" href="" pointer-events="none"></use>
                 <g id="quad-handles-group" style="visibility: hidden;">
                     <!-- Resize handles -->
                     <use class="handle " data-dir="nw" x="0" y="0" href="#handle-icon"/>
@@ -160,6 +161,16 @@
         $viewport.scrollTop += center.y * (newZoom - currentZoom)
       }
       doc.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
+    }
+
+    highlightShape(shapeId) {
+      const hoverOverlay = $('hover-overlay')
+      if (shapeId) {
+        hoverOverlay.setAttribute('href', `#${shapeId}`)
+        hoverOverlay.style.display = 'inherit'
+      } else {
+        hoverOverlay.style.display = 'none'
+      }
     }
   }
 

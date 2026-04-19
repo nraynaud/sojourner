@@ -162,7 +162,7 @@ svg.select {
     cursor: default;
 }
 
-.shape {
+#shapes-group {
     fill: rgba(0, 123, 255, 0.3);
     stroke: #007bff;
     stroke-width: 2;
@@ -171,6 +171,8 @@ svg.select {
     transform-origin: center;
     rotate: 0deg;
 }
+.shape {
+}
 
 .shape.selected {
     stroke: #ff0000;
@@ -178,9 +180,13 @@ svg.select {
     vector-effect: non-scaling-stroke;
 }
 
-.shape.hovered {
-    filter: drop-shadow(0 0 5px rgba(255, 200, 200, 0.8));
+#hover-overlay {
+    fill: rgba(0, 123, 255, 0.3);
+    stroke: #007bff;
     stroke-width: 5;
+    vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 5px rgba(255, 200, 200, 0.9));
+    pointer-events: none;
 }
 
 .handle {
