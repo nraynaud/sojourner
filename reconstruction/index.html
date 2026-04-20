@@ -33,6 +33,10 @@
         <div id="image-list"></div>
         <h3 class="panel-header">Entities</h3>
         <div id="entity-list"></div>
+        <div id="details-panel" style="display: none;">
+            <h3 class="panel-header">Details</h3>
+            <div id="details-content"></div>
+        </div>
     </div>
     <div id="canvas-container">
         <svg id="svg-canvas" xmlns="http://www.w3.org/2000/svg">
@@ -46,7 +50,7 @@
                     <circle cx="0" cy="-20" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
                 </symbol>
                 <symbol id="vertex-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
-                    <circle cx="0" cy="0" r="3" fill="red"/>
+                    <circle cx="0" cy="0" r="4"/>
                 </symbol>
             </defs>
             <g id="zoom-group">
@@ -78,6 +82,7 @@
 </div>
 <script type="module">
   import { ReconstructionDocument } from './src/document.mjs'
+  import { DetailsPanel } from './src/details.mjs'
   import * as modes from './src/modes.mjs'
   import * as shapes from './src/shapes.mjs'
   import {
@@ -163,12 +168,13 @@
       doc.dispatchEvent(new CustomEvent('zoomed', {detail: newZoom}))
     }
 
-    highlightShape(shapeId) {
+    highlightShape (shapeId) {
       const hoverOverlay = $('hover-overlay')
       if (shapeId) {
         hoverOverlay.setAttribute('href', `#${shapeId}`)
         hoverOverlay.style.display = 'inherit'
-      } else {
+      }
+      else {
         hoverOverlay.style.display = 'none'
       }
     }
@@ -177,10 +183,15 @@
   console.log('Script loaded')
   const ui = new UIObject()
   let doc = new ReconstructionDocument(ui)
+  const detailsPanel = new DetailsPanel($('details-panel'), $('details-content'))
   let $svg = $('svg-canvas')
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
   let activeMode = new ActiveModeHolder(doc, $svg, $zoomGroup)
+
+  doc.addEventListener('selectionChanged', e => {
+    detailsPanel.setShape(e.detail.selected)
+  })
 
   doc.loadFromDB().then(async () => {
     if (doc.images.length === 0) {
@@ -246,9 +257,9 @@
     'zoom-out-btn': () => ui.zoom(0.9),
     'zoom-reset-btn': () => ui.zoom(0),
     'bg-btn': () => {
-        const input = $('bg-input');
-        input.multiple = true;
-        input.click();
+      const input = $('bg-input')
+      input.multiple = true
+      input.click()
     },
     'undo-btn': () => doc.undo(),
     'redo-btn': () => doc.redo(),

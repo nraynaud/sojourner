@@ -1,17 +1,18 @@
-import {  createNS, setAttributes, mapObject } from './util.mjs'
+import { createNS, mapObject, setAttributes } from './util.mjs'
 
 export class Shape {
   constructor (el) {
     this.el = el
     this.id = el.id
     this.geometries = {} // imageId -> geometry
+    this.attributes = {} // constant attributes
   }
 
   get name () { return this.el.getAttribute('data-name') }
 
   set name (val) { this.el.setAttribute('data-name', val) }
 
-  setAttributes (attrs) {
+  set2DAttributes (attrs) {
     for (let k in attrs) this.el.setAttribute(k, attrs[k])
   }
 
@@ -23,7 +24,7 @@ export class Shape {
 
   getLocalBBox () { return this.getInitialRect() }
 
-  getAttributes () { throw 'getAttributes must be implemented' }
+  get2DAttributes () { throw 'getAttributes must be implemented' }
 
   getInitialRect () { throw 'getInitialRect must be implemented' }
 
@@ -31,12 +32,12 @@ export class Shape {
 
   applyGeometry (geometry) {
     if (geometry.rotate) this.el.style.rotate = geometry.rotate
-    this.setAttributes(geometry.attributes)
+    this.set2DAttributes(geometry.attributes)
   }
 
   recordGeometry (imageId) {
     this.geometries[imageId] = {
-      attributes: this.getAttributes(),
+      attributes: this.get2DAttributes(),
       rotate: this.el.style.rotate
     }
   }
@@ -99,9 +100,10 @@ export class QuadrilateralShape extends Shape {
 
   setPoints (points) {
     if (Array.isArray(points)) {
-        this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
-    } else if (typeof points === 'string') {
-        this.el.setAttribute('points', points)
+      this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
+    }
+    else if (typeof points === 'string') {
+      this.el.setAttribute('points', points)
     }
   }
 
@@ -111,10 +113,16 @@ export class QuadrilateralShape extends Shape {
   }
 
   toJSON () {
-    return {type: 'quad', id: this.id, name: this.name, geometries: this.geometries}
+    return {
+      type: 'quad',
+      id: this.id,
+      name: this.name,
+      geometries: this.geometries,
+      attributes: this.attributes
+    }
   }
 
-  getAttributes () {
+  get2DAttributes () {
     return {
       points: this.el.getAttribute('points')
     }
@@ -156,7 +164,7 @@ export class EllipseShape extends Shape {
     super(el)
   }
 
-  getAttributes () {
+  get2DAttributes () {
     return {
       cx: this.el.getAttribute('cx'),
       cy: this.el.getAttribute('cy'),
@@ -173,7 +181,7 @@ export class EllipseShape extends Shape {
   }
 
   getInitialRect () {
-    return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+    return mapObject(this.get2DAttributes(), (key, value) => [key, parseFloat(value)])
   }
 
   updateResize (r, lDx, lDy, dir) {
@@ -194,7 +202,7 @@ export class EllipseShape extends Shape {
       ry -= lDy / 2
       cy += lDy / 2
     }
-    this.setAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
+    this.set2DAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
   }
 
   updateHandles (_handlesGroup, _context = {}) {
@@ -221,7 +229,8 @@ export class EllipseShape extends Shape {
       type: 'ellipse',
       id: this.id,
       name: this.name,
-      geometries: this.geometries
+      geometries: this.geometries,
+      attributes: this.attributes
     }
   }
 
@@ -247,31 +256,33 @@ export class VertexShape extends Shape {
       class: 'shape vertex-shape'
     })
     super(el)
+    this.attributes = {x: 0, y: 0, z: 0}
   }
 
   applyGeometry (geometry) {
-    this.setAttributes(geometry.attributes)
+    this.set2DAttributes(geometry.attributes)
   }
 
   recordGeometry (imageId) {
     this.geometries[imageId] = {
-      attributes: this.getAttributes()
+      attributes: this.get2DAttributes()
     }
   }
 
-  setAttributes (attrs) {
-    if (attrs.x !== undefined) {
-      this.el.setAttribute('data-x', attrs.x)
-      delete attrs.x
+  set2DAttributes (attrs) {
+    const localAttrs = {...attrs}
+    if (localAttrs.x !== undefined) {
+      this.el.setAttribute('data-x', localAttrs.x)
+      delete localAttrs.x
     }
-    if (attrs.y !== undefined) {
-      this.el.setAttribute('data-y', attrs.y)
-      delete attrs.y
+    if (localAttrs.y !== undefined) {
+      this.el.setAttribute('data-y', localAttrs.y)
+      delete localAttrs.y
     }
-    super.setAttributes(attrs)
+    super.set2DAttributes(localAttrs)
   }
 
-  getAttributes () {
+  get2DAttributes () {
     return {
       x: this.el.getAttribute('data-x'),
       y: this.el.getAttribute('data-y')
@@ -289,7 +300,7 @@ export class VertexShape extends Shape {
   }
 
   getInitialRect () {
-    return mapObject(this.getAttributes(), (key, value) => [key, parseFloat(value)])
+    return mapObject(this.get2DAttributes(), (key, value) => [key, parseFloat(value)])
   }
 
   toJSON () {
@@ -297,7 +308,8 @@ export class VertexShape extends Shape {
       type: 'vertex',
       id: this.id,
       name: this.name,
-      geometries: this.geometries
+      geometries: this.geometries,
+      attributes: this.attributes
     }
   }
 

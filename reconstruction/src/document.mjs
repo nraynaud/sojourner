@@ -225,10 +225,6 @@ export class ReconstructionDocument extends EventTarget {
     return this.entityCount
   }
 
-  getCurrentZoom () {
-    return this.ui.getCurrentZoom()
-  }
-
   addShape (shape, skipSave = false) {
     if (!skipSave) this.pushState()
     if (!this.shapesGroup.contains(shape.el))
@@ -329,6 +325,7 @@ export class ReconstructionDocument extends EventTarget {
         s.el.classList.toggle('selected', s === sel)
       }
     })
+    dispatchCustom(this, 'selectionChanged', {selected: sel})
   }
 
   removeShapeGeometry (shape) {
@@ -356,6 +353,7 @@ export class ReconstructionDocument extends EventTarget {
   }
 
   async save () {
+    console.log('saving entities', this.entities.map(s => JSON.stringify(s.toJSON())))
     const data = {
       entities: this.entities.map(s => s.toJSON()),
       entityCount: this.entityCount,
@@ -452,32 +450,23 @@ export class ReconstructionDocument extends EventTarget {
       let s
       if (ent.type === 'rect') {
         s = new shapes.QuadrilateralShape(ent.id, null, 0)
-        const x = parseFloat(ent.attributes.x) || 0, y = parseFloat(ent.attributes.y) || 0
-        const w = parseFloat(ent.attributes.width) || 0, h = parseFloat(ent.attributes.height) || 0
-        const pts = [{x, y}, {x: x + w, y}, {x: x + w, y: y + h}, {x, y: y + h}]
-        s.setPoints(pts)
-        if (this.currentImageId) s.geometries[this.currentImageId] = {points: pts}
+        s.geometries = ent.geometries || {}
+        s.attributes = ent.attributes || {}
       }
       else if (ent.type === 'quad') {
         s = new shapes.QuadrilateralShape(ent.id, null, 0)
         s.geometries = ent.geometries || {}
-        if (ent.attributes && Object.keys(s.geometries).length === 0 && this.currentImageId) {
-          s.geometries[this.currentImageId] = {points: ent.attributes.points}
-        }
+        s.attributes = ent.attributes || {}
       }
       else if (ent.type === 'ellipse') {
         s = new shapes.EllipseShape(ent.id, null, 0)
         s.geometries = ent.geometries || {}
-        if (ent.attributes && Object.keys(s.geometries).length === 0 && this.currentImageId) {
-          s.geometries[this.currentImageId] = {attributes: ent.attributes, rotate: ent.rotate}
-        }
+        s.attributes = ent.attributes || {}
       }
       else if (ent.type === 'vertex') {
-        s = new shapes.VertexShape(ent.id, null, 0, this.getCurrentZoom())
+        s = new shapes.VertexShape(ent.id, null, 0)
         s.geometries = ent.geometries || {}
-        if (ent.attributes && Object.keys(s.geometries).length === 0 && this.currentImageId) {
-          s.geometries[this.currentImageId] = {attributes: ent.attributes}
-        }
+        s.attributes = ent.attributes || {x: 0, y: 0, z: 0}
       }
       else return
 

@@ -132,7 +132,7 @@ export class DrawEllipseMode extends BaseDrawingMode {
     const ry = Math.abs(pos.y - this.startPoint.y) / 2
     const cx = (pos.x + this.startPoint.x) / 2
     const cy = (pos.y + this.startPoint.y) / 2
-    this.currentElement.setAttributes({cx, cy, rx, ry})
+    this.currentElement.set2DAttributes({cx, cy, rx, ry})
   }
 
   getDefaultActions () {
@@ -453,7 +453,7 @@ export class SelectionEllipseMode extends Mode {
     const safeSin = Math.max(Math.abs(sinA), 1e-3)
     const rx = Math.max(1, Math.abs((localPos.x - opp.x) / (2 * safeCos)))
     const ry = Math.max(1, Math.abs((localPos.y - opp.y) / (2 * safeSin)))
-    this.selectedElement.setAttributes({cx, cy, rx, ry})
+    this.selectedElement.set2DAttributes({cx, cy, rx, ry})
 
     if (this.frozenEllipseHandlePositions) {
       Object.entries(this.frozenEllipseHandlePositions).forEach(([handleKey, point]) => {
@@ -576,10 +576,11 @@ export class SelectionVertexMode extends Mode {
     })
     this.listen(window, 'mousemove', (e) => {
       const pos = getMousePos(e, this.$zoomGroup)
-      if (this.isTranslating) s.setAttributes(pos)
+      if (this.isTranslating) s.set2DAttributes(pos)
     })
     this.listen(window, 'mouseup', (_e) => {
       if (this.isTranslating) {
+        this.doc.saveShapeGeometry(this.selectedElement)
         this.doc.save()
         this.isTranslating = false
         this.updateStatus()

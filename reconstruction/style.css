@@ -44,8 +44,51 @@ button.active {
     border-right: 1px solid #ddd;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
     padding: 0.625em;
+}
+
+#image-list, #entity-list {
+    overflow-y: auto;
+}
+
+#image-list {
+    max-height: 200px;
+    flex-shrink: 0;
+}
+
+#entity-list {
+    flex-grow: 1;
+}
+
+#details-panel {
+    border-top: 2px solid #ddd;
+    margin-top: 10px;
+    padding-top: 10px;
+    flex-shrink: 0;
+}
+
+#details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.detail-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detail-row label {
+    width: 20px;
+    font-weight: bold;
+}
+
+.detail-row input {
+    flex-grow: 1;
+    padding: 2px 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
 }
 
 .entity-item {
@@ -176,7 +219,7 @@ svg.select {
 
 .shape.selected {
     stroke: #ff0000;
-    stroke-width: 3;
+    stroke-width: 3px;
     vector-effect: non-scaling-stroke;
 }
 
@@ -229,14 +272,6 @@ svg.select {
     fill: #28a745;
 }
 
-#quad-handles-group, #ellipse-handles-group {
-    pointer-events: none;
-}
-
-#quad-handles-group .handle, #quad-handles-group .rotate-handle, #ellipse-handles-group .ellipse-handle {
-    pointer-events: all;
-}
-
 #rotate-line {
     vector-effect: non-scaling-stroke;
 }
@@ -246,10 +281,15 @@ svg.select {
 }
 
 .vertex-shape {
+    pointer-events: painted;
     x: attr(data-x px, 0);
     y: attr(data-y px, 0);
+    stroke-width: 3px;
 }
 
+#vertex-icon {
+    pointer-events: painted;
+}
 /*
 Used on symbols whose representation doesn't change with the zoom level.
 Define it on the <symbol>, not on the <use>.
