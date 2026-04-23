@@ -25,6 +25,7 @@
     <button id="load-btn">Load (Zip)</button>
     <input type="file" id="load-input" accept=".zip" style="display: none;">
     <button id="canny-btn">Canny</button>
+    <button id="solve-btn">Solve</button>
 </div>
 
 <div id="main-container">
@@ -84,7 +85,9 @@
   import { ReconstructionDocument } from './src/document.mjs'
   import { DetailsPanel } from './src/details.mjs'
   import * as modes from './src/modes.mjs'
+  import { VertexShape } from './src/shapes.mjs'
   import * as shapes from './src/shapes.mjs'
+  import runCeres from './ceres/ceres.mjs'
   import {
     $,
     invokeLater,
@@ -248,6 +251,17 @@
     doc.toggleCanny()
   }
 
+  function solve() {
+    const vertices = doc.entities.filter(e=>e instanceof VertexShape)
+    const collected = []
+    console.log('vertices', vertices)
+    for (const vertex of vertices) {
+      collected.push([...Object.values(vertex.attributes), ...Object.values(vertex.get2DAttributes())])
+    }
+    console.log('collected', collected)
+    runCeres(collected, [8688, 5792])
+  }
+
   const clickHandlers = {
     'rect-btn': () => activeMode.setMode(modes.DrawQuadrilateralMode),
     'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
@@ -266,6 +280,7 @@
     'save-btn': () => doc.saveToFile(),
     'load-btn': () => $('load-input').click(),
     'canny-btn': toggleCanny,
+    'solve-btn':solve
   }
   for (const [id, handler] of Object.entries(clickHandlers)) {
     $(id).addEventListener('click', handler)

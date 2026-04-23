@@ -284,8 +284,8 @@ export class VertexShape extends Shape {
 
   get2DAttributes () {
     return {
-      x: this.el.getAttribute('data-x'),
-      y: this.el.getAttribute('data-y')
+      x: parseFloat(this.el.getAttribute('data-x')),
+      y: parseFloat(this.el.getAttribute('data-y'))
     }
   }
 

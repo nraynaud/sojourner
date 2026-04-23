@@ -353,7 +353,6 @@ export class ReconstructionDocument extends EventTarget {
   }
 
   async save () {
-    console.log('saving entities', this.entities.map(s => JSON.stringify(s.toJSON())))
     const data = {
       entities: this.entities.map(s => s.toJSON()),
       entityCount: this.entityCount,
