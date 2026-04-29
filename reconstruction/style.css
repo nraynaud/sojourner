@@ -217,6 +217,13 @@ svg.select {
 .shape {
 }
 
+.shape.direction-shape {
+    stroke: blue;
+    stroke-width: 2;
+    pointer-events: visibleStroke;
+    vector-effect: non-scaling-stroke;
+}
+
 .shape.selected {
     stroke: #ff0000;
     stroke-width: 3px;

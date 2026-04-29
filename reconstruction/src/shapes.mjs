@@ -322,4 +322,93 @@ export class VertexShape extends Shape {
   }
 }
 
+export class DirectionShape extends Shape {
+  constructor (id, start, label) {
+    const el = createNS('line')
+    const x = start ? start.x : 0, y = start ? start.y : 0
+    setAttributes(el, {
+      id,
+      x1: x, y1: y, x2: x, y2: y,
+      'data-name': `Direction ${label}`,
+      class: 'shape direction-shape'
+    })
+    super(el)
+    this.attributes = {vx: 0, vy: 0, vz: 1}
+  }
+
+  applyGeometry (geometry) {
+    this.set2DAttributes(geometry.attributes)
+  }
+
+  recordGeometry (imageId) {
+    this.geometries[imageId] = {
+      attributes: this.get2DAttributes()
+    }
+  }
+
+  get2DAttributes () {
+    return {
+      x1: parseFloat(this.el.getAttribute('x1')),
+      y1: parseFloat(this.el.getAttribute('y1')),
+      x2: parseFloat(this.el.getAttribute('x2')),
+      y2: parseFloat(this.el.getAttribute('y2'))
+    }
+  }
+
+  getCenter () {
+    const attrs = this.get2DAttributes()
+    return {x: (attrs.x1 + attrs.x2) / 2, y: (attrs.y1 + attrs.y2) / 2}
+  }
+
+  getLocalBBox () {
+    const a = this.get2DAttributes()
+    const x = Math.min(a.x1, a.x2), y = Math.min(a.y1, a.y2)
+    const width = Math.abs(a.x1 - a.x2), height = Math.abs(a.y1 - a.y2)
+    return {x, y, width, height}
+  }
+
+  getInitialRect () {
+    return this.get2DAttributes()
+  }
+
+  updateVertex (initial, lDx, lDy, dir) {
+    const attrs = {...initial}
+    if (dir === 'start') {
+      attrs.x1 += lDx
+      attrs.y1 += lDy
+    } else if (dir === 'end') {
+      attrs.x2 += lDx
+      attrs.y2 += lDy
+    }
+    this.set2DAttributes(attrs)
+  }
+
+  updateHandles (handlesGroup) {
+    const attrs = this.get2DAttributes()
+    const hStart = handlesGroup.querySelector('.handle[data-dir="start"]')
+    const hEnd = handlesGroup.querySelector('.handle[data-dir="end"]')
+    if (hStart) setAttributes(hStart, {x: attrs.x1, y: attrs.y1})
+    if (hEnd) setAttributes(hEnd, {x: attrs.x2, y: attrs.y2})
+  }
+
+  toJSON () {
+    return {
+      type: 'direction',
+      id: this.id,
+      name: this.name,
+      geometries: this.geometries,
+      attributes: this.attributes
+    }
+  }
+
+  createDefaultGeometry (pos) {
+    return {
+      attributes: {
+        x1: pos.x - 50, y1: pos.y,
+        x2: pos.x + 50, y2: pos.y
+      }
+    }
+  }
+}
+
 

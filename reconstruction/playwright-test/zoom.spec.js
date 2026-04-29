@@ -7,7 +7,7 @@ test.describe('Zoom function tests', () => {
     await page.goto('/')
     // Ensure the page is ready
     await expect(page.locator('#svg-canvas')).toBeVisible()
-    // Clear IndexedDB for a fresh test if possible
+    // Clear IndexedDB for a fresh playwright-test if possible
     await page.evaluate(async () => {
       return new Promise((resolve) => {
         const dbRequest = indexedDB.deleteDatabase('SvgEditorDB')
@@ -105,7 +105,7 @@ test.describe('Zoom function tests', () => {
   })
 
   test('Zoom with background size consideration', async ({page}) => {
-    // This test verifies that the svg-canvas size changes with zoom
+    // This playwright-test verifies that the svg-canvas size changes with zoom
     // Since there's no background by default, doc.getBackgroundSize() might return default 100x100 or something.
 
     const svgCanvas = page.locator('#svg-canvas')

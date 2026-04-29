@@ -12,6 +12,7 @@
 <div id="toolbar">
     <button id="rect-btn">Quadrilateral</button>
     <button id="ellipse-btn">Ellipse</button>
+    <button id="direction-btn">Direction</button>
     <button id="vertex-btn">Vertex</button>
     <button id="select-btn">Select</button>
     <button id="zoom-in-btn">Zoom +</button>
@@ -53,6 +54,10 @@
                 <symbol id="vertex-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
                     <circle cx="0" cy="0" r="4"/>
                 </symbol>
+                <symbol id="direction-handle-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12"
+                        x="-6" y="-6">
+                    <circle cx="0" cy="0" r="5" fill="white" stroke="#007bff" stroke-width="1"/>
+                </symbol>
             </defs>
             <g id="zoom-group">
                 <g id="background-group"></g>
@@ -72,6 +77,10 @@
                     <use class="ellipse-handle" data-ellipse-dir="s" x="0" y="0" href="#handle-icon"/>
                     <use class="ellipse-handle" data-ellipse-dir="w" x="0" y="0" href="#handle-icon"/>
                 </g>
+                <g id="direction-handles-group" style="visibility: hidden;">
+                    <use class="handle" data-dir="start" x="0" y="0" href="#direction-handle-icon"/>
+                    <use class="handle" data-dir="end" x="0" y="0" href="#direction-handle-icon"/>
+                </g>
             </g>
         </svg>
     </div>
@@ -85,7 +94,7 @@
   import { ReconstructionDocument } from './src/document.mjs'
   import { DetailsPanel } from './src/details.mjs'
   import * as modes from './src/modes.mjs'
-  import { VertexShape } from './src/shapes.mjs'
+  import { DirectionShape, VertexShape } from './src/shapes.mjs'
   import * as shapes from './src/shapes.mjs'
   import runCeres from './ceres/ceres.mjs'
   import {
@@ -122,6 +131,7 @@
         let ModeClass = modes.SelectionQuadrilateralMode
         if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
         if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
+        if (el instanceof shapes.DirectionShape) ModeClass = modes.SelectionDirectionMode
         dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
       }
       else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
@@ -251,20 +261,27 @@
     doc.toggleCanny()
   }
 
-  function solve() {
-    const vertices = doc.entities.filter(e=>e instanceof VertexShape)
-    const collected = []
+  function solve () {
+    const vertices = doc.entities.filter(e => e instanceof VertexShape)
+    const collectedVertices = []
     console.log('vertices', vertices)
     for (const vertex of vertices) {
-      collected.push([...Object.values(vertex.attributes), ...Object.values(vertex.get2DAttributes())])
+      collectedVertices.push([...Object.values(vertex.attributes), ...Object.values(vertex.get2DAttributes())])
     }
-    console.log('collected', collected)
-    runCeres(collected, [8688, 5792])
+    console.log('collectedVertices', collectedVertices)
+    const directions = doc.entities.filter(e => e instanceof DirectionShape)
+    const byDirection = Object.groupBy(directions, direction => JSON.stringify(direction.attributes))
+    for (const key in byDirection) {
+      byDirection[key] = byDirection[key].map(dir => dir.get2DAttributes())
+    }
+    console.log('byDirection', byDirection)
+    runCeres([8688, 5792], collectedVertices, byDirection)
   }
 
   const clickHandlers = {
     'rect-btn': () => activeMode.setMode(modes.DrawQuadrilateralMode),
     'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
+    'direction-btn': () => activeMode.setMode(modes.DrawDirectionMode),
     'vertex-btn': () => activeMode.setMode(modes.DrawVertexMode),
     'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),
     'zoom-in-btn': () => ui.zoom(1.1),
@@ -280,7 +297,7 @@
     'save-btn': () => doc.saveToFile(),
     'load-btn': () => $('load-input').click(),
     'canny-btn': toggleCanny,
-    'solve-btn':solve
+    'solve-btn': solve
   }
   for (const [id, handler] of Object.entries(clickHandlers)) {
     $(id).addEventListener('click', handler)

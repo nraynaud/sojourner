@@ -467,6 +467,11 @@ export class ReconstructionDocument extends EventTarget {
         s.geometries = ent.geometries || {}
         s.attributes = ent.attributes || {x: 0, y: 0, z: 0}
       }
+      else if (ent.type === 'direction') {
+        s = new shapes.DirectionShape(ent.id, null, 0)
+        s.geometries = ent.geometries || {}
+        s.attributes = ent.attributes || {vx: 0, vy: 0, vz: 1}
+      }
       else return
 
       s.name = ent.name

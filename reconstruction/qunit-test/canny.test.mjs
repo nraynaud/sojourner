@@ -23,7 +23,7 @@ async function addImageToTest (container, imageData, label) {
     await showInCanvas(canvasElement, imageData)
 
     const img = canvasElement
-    img.className = 'test-image'
+    img.className = 'playwright-test-image'
 
     const imgContainer = document.createElement('div')
     imgContainer.style.marginTop = '10px'
@@ -39,10 +39,10 @@ async function addImageToTest (container, imageData, label) {
 }
 
 QUnit.assert.imagesTest = async function (images, captions, message, result = true) {
-  const assertionList = document.getElementById('qunit-test-output-' + QUnit.config.current.testId)
+  const assertionList = document.getElementById('qunit-playwright-test-output-' + QUnit.config.current.testId)
     .querySelector('.qunit-assert-list')
   const imageContainer = document.createElement('div')
-  imageContainer.className = 'test-images'
+  imageContainer.className = 'playwright-test-images'
   imageContainer.style.display = 'flex'
   imageContainer.style.marginTop = '10px'
   imageContainer.style.gap = '10px'
@@ -181,7 +181,7 @@ QUnit.module('Canny Edge Detector', function () {
     const centerIdx = 1 * stride + 4
     assert.close(wasmMemory[magAddr / 4 + centerIdx], 1020, 0.001, 'Magnitude at center should be correct')
     // Direction was tested via atan2(gy, gx), but now we precompute neighbor index.
-    // We'll rely on the 'sobel should compute correct neighbor numbers' test for direction accuracy.
+    // We'll rely on the 'sobel should compute correct neighbor numbers' playwright-test for direction accuracy.
   })
 
   QUnit.test('sobel should compute correct neighbor numbers', async function (assert) {
@@ -248,11 +248,11 @@ QUnit.module('Canny Edge Detector', function () {
   QUnit.test('process should return ImageData with edges', async function (assert) {
     // We'll use a mock since we can't easily create a real ImageData in some environments without a DOM
     // In many browser-based environments, ImageData is available, but if we're in a pure Node environment it might not be.
-    // However, the test runner test.html is designed for a browser environment.
+    // However, the playwright-test runner playwright-test.html is designed for a browser environment.
 
     // Check if ImageData is available
     if (typeof ImageData === 'undefined') {
-      assert.ok(true, 'Skipping ImageData test (ImageData not defined in this environment)')
+      assert.ok(true, 'Skipping ImageData playwright-test (ImageData not defined in this environment)')
       return
     }
 
@@ -300,7 +300,7 @@ QUnit.module('Canny Edge Detector', function () {
       }
     }
 
-    // Create a copy to avoid detachment issues during test visualization
+    // Create a copy to avoid detachment issues during playwright-test visualization
     const imageDataCopy = new ImageData(new Uint8ClampedArray(imageData.data), width, height)
     const blob = await Canny.processAsync(imageData, {lowThreshold: 20, highThreshold: 50})
     const result = await createImageBitmap(blob)

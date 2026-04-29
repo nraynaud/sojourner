@@ -1,4 +1,4 @@
-import { EllipseShape, QuadrilateralShape, VertexShape } from './shapes.mjs'
+import { DirectionShape, EllipseShape, QuadrilateralShape, VertexShape } from './shapes.mjs'
 import { $, dispatchCustom } from './util.mjs'
 
 export function getMousePos (evt, svg) {
@@ -91,6 +91,7 @@ class BaseDrawingMode extends Mode {
     this.doc.saveShapeGeometry(el)
     let ModeClass = SelectionQuadrilateralMode
     if (el instanceof EllipseShape) ModeClass = SelectionEllipseMode
+    if (el instanceof DirectionShape) ModeClass = SelectionDirectionMode
     dispatchCustom(this, 'modeTransition', {newMode: ModeClass, arg: el})
   }
 }
@@ -137,6 +138,28 @@ export class DrawEllipseMode extends BaseDrawingMode {
 
   getDefaultActions () {
     return 'Click and drag to draw an ellipse.'
+  }
+}
+
+export class DrawDirectionMode extends BaseDrawingMode {
+  constructor (doc, svg, $zoomGroup) {
+    super(doc, 'direction', svg, $zoomGroup)
+    this.activationSelector = 'direction-btn'
+  }
+
+  createShape (id, pos, label) {
+    return new DirectionShape(id, pos, label)
+  }
+
+  updateShape (pos) {
+    this.currentElement.set2DAttributes({
+      x1: this.startPoint.x, y1: this.startPoint.y,
+      x2: pos.x, y2: pos.y
+    })
+  }
+
+  getDefaultActions () {
+    return 'Click and drag to draw a direction segment.'
   }
 }
 
@@ -318,6 +341,16 @@ export class SelectionQuadrilateralMode extends Mode {
 
   updateHandles () {
     this.selectedElement.updateHandles(this.handles, this)
+  }
+}
+
+export class SelectionDirectionMode extends SelectionQuadrilateralMode {
+  constructor (doc, svg, $zoomGroup, selectedElement) {
+    super(doc, svg, $zoomGroup, selectedElement, $('direction-handles-group'))
+  }
+
+  getDefaultActions () {
+    return 'Drag handles to move endpoints. Press Del or Backspace to delete.'
   }
 }
 

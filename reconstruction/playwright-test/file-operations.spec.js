@@ -33,11 +33,11 @@ test.describe('File operations', () => {
     const download = await downloadPromise
 
     expect(download.suggestedFilename()).toBe('project.zip')
-    
-    const downloadPath = path.join('test-results', 'project.zip')
+
+    const downloadPath = path.join('playwright-test-results', 'project.zip')
     await download.saveAs(downloadPath)
     expect(fs.existsSync(downloadPath)).toBeTruthy()
-    
+
     // Cleanup
     if (fs.existsSync(downloadPath)) {
       fs.unlinkSync(downloadPath)
@@ -45,13 +45,13 @@ test.describe('File operations', () => {
   })
 
   test('Load (Zip) functionality', async ({page}) => {
-    // To test load, we need a valid zip. 
-    // We can either create one manually in the test or use the save-btn to get one.
+    // To playwright-test load, we need a valid zip.
+    // We can either create one manually in the playwright-test or use the save-btn to get one.
     // Creating one manually ensures we know exactly what's inside.
-    
+
     // We'll use page.evaluate to create a zip using JSZip (which is already loaded in index.html)
     // and then trigger the load-input.
-    
+
     const zipData = await page.evaluate(async () => {
       const z = new JSZip()
       const docData = {
@@ -74,7 +74,7 @@ test.describe('File operations', () => {
         images: [
           {
             id: 'img-1',
-            name: 'test-bg.jpg',
+            name: 'playwright-test-bg.jpg',
             cannyEnabled: false
           }
         ],
@@ -88,14 +88,14 @@ test.describe('File operations', () => {
       canvas.height = 2
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'))
       imgFolder.file('img-1', blob)
-      
+
       const zipBlob = await z.generateAsync({type: 'blob'})
       return new Uint8Array(await zipBlob.arrayBuffer())
     })
 
-    const tempZipPath = path.join('test-results', 'test-load.zip')
-    if (!fs.existsSync('test-results')) {
-        fs.mkdirSync('test-results')
+    const tempZipPath = path.join('playwright-test-results', 'playwright-test-load.zip')
+    if (!fs.existsSync('playwright-test-results')) {
+        fs.mkdirSync('playwright-test-results')
     }
     fs.writeFileSync(tempZipPath, Buffer.from(zipData))
 
@@ -109,14 +109,14 @@ test.describe('File operations', () => {
     const shapesGroup = page.locator('#shapes-group')
     await expect(shapesGroup.locator('polygon')).toHaveCount(1)
     await expect(shapesGroup.locator('polygon')).toHaveAttribute('points', /10,10/)
-    
+
     const entityList = page.locator('#entity-list')
     await expect(entityList.locator('.entity-item')).toHaveCount(1)
     await expect(entityList.locator('.entity-item', { hasText: 'Loaded Rect' })).toBeVisible()
 
     const imageList = page.locator('#image-list')
     await expect(imageList.locator('.entity-item')).toHaveCount(1)
-    await expect(imageList.locator('.entity-item', { hasText: 'test-bg.jpg' })).toBeVisible()
+    await expect(imageList.locator('.entity-item', { hasText: 'playwright-test-bg.jpg' })).toBeVisible()
 
     // Also verify background in SVG
     const backgroundGroup = page.locator('#background-group')

@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('Undo/Redo test', () => {
+test.describe('Undo/Redo playwright-test', () => {
   test.beforeEach(async ({page}) => {
     await page.goto('/')
     // Ensure the page is ready
     await expect(page.locator('#svg-canvas')).toBeVisible()
-    // Clear IndexedDB for a fresh test if possible
+    // Clear IndexedDB for a fresh playwright-test if possible
     await page.evaluate(async () => {
       return new Promise((resolve) => {
         const dbRequest = indexedDB.deleteDatabase('SvgEditorDB')
@@ -96,10 +96,10 @@ test.describe('Undo/Redo test', () => {
     const rect = shapesGroup.locator('polygon')
     // Capture initial points to avoid regex hell
     const initialPoints = await rect.getAttribute('points')
-    
+
     // Switch to select mode explicitly
     await page.click('#select-btn')
-    
+
     // Click to select the rectangle to show handles
     await rect.click()
 
@@ -113,7 +113,7 @@ test.describe('Undo/Redo test', () => {
       const handle = document.querySelector(`.handle[data-dir="${dir}"]`);
       const svg = document.querySelector('#svg-canvas');
       const zoomGroup = document.querySelector('#zoom-group');
-      
+
       const getPt = (e) => {
         let p = svg.createSVGPoint();
         p.x = e.clientX; p.y = e.clientY;
@@ -141,14 +141,14 @@ test.describe('Undo/Redo test', () => {
 
     // Check it actually changed
     expect(resizedPoints).not.toBe(initialPoints)
-    
+
     // Undo resize
     await page.click('#undo-btn')
-    
+
     // Wait for the change to be reflected
     await expect(rect).not.toHaveAttribute('points', resizedPoints)
     const pointsAfterUndo = await rect.getAttribute('points')
-    
+
     // Check if it's close to initial
     const parsePts = (s) => s.split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n))
     const p1 = parsePts(initialPoints)
