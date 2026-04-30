@@ -22,7 +22,7 @@ async function runTestProject () {
   const directions = doc.entities.filter(e => e.type === 'direction' && e.geometries[imgId])
   const byDirection = {}
   for (const d of directions) {
-    const key = JSON.stringify(d.attributes)
+    const key = JSON.stringify([d.attributes.vx, d.attributes.vy, d.attributes.vz])
     if (!byDirection[key]) byDirection[key] = []
     const g = d.geometries[imgId].attributes
     byDirection[key].push([g.x1, g.y1, g.x2, g.y2])

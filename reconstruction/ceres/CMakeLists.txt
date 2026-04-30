@@ -47,6 +47,7 @@ set(CXSPARSE OFF)
 set(LAPACK OFF)
 set(USE_CUDA OFF)
 set(EIGENSPARSE OFF)
+set(SCHUR_SPECIALIZATIONS OFF)
 # avoid eigen going into the x86 intrinsics code path
 add_definitions(-DEIGEN_DONT_VECTORIZE=1)
 # eigen and Ceres uninstall targets clash names

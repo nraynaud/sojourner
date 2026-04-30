@@ -113,10 +113,10 @@ struct DirectionConstraint : CompleteConstraint<1, DirectionConstraint> {
     }
 
     static Created Create(const std::array<double, 4> &observation, const std::array<double, 3> &d_world,
-                          const double weight) {
+                          const double weight, const double threshold) {
         return {
             new DirectionConstraint(observation[0], observation[1], observation[2], observation[3], d_world),
-            new ceres::ScaledLoss(new ceres::TukeyLoss(10.0), weight, ceres::TAKE_OWNERSHIP)
+            new ceres::ScaledLoss(new ceres::TukeyLoss(threshold), weight, ceres::TAKE_OWNERSHIP)
         };
     }
 
@@ -254,11 +254,11 @@ void solve_camera(const double imageSize[2], const double *points = nullptr,
                 // Calculate pixel length of the observed segment
                 const double length = norm(currentObsArray[2] - currentObsArray[0],
                                            currentObsArray[3] - currentObsArray[1]);
-                const double weight = length / 100.0;
+                const double weight = length / 1000.0;
                 std::cout << "    observation: " << currentObsArray << "\n";
                 std::cout << "    length: " << length << " weight: " << weight << "\n";
                 const auto blockId = DirectionConstraint::add(problem, intrinsics, extrinsics, currentObsArray,
-                                                              currentDirArray, weight);
+                                                              currentDirArray, weight, pointReprojectionOutlierThreshold);
                 directionResiduals.push_back({i, j, blockId});
                 currentObs += 4;
             }
