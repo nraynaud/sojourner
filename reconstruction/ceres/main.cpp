@@ -71,7 +71,7 @@ struct PositiveDepthConstraint : CompleteConstraint<1, PositiveDepthConstraint> 
         T p[3] = {T(X_[0]), T(X_[1]), T(X_[2])};
         T imaged[3];
         extrinsics.imagePoint(p, imaged);
-        residuals[0] = ceres::fmax(T(0), -p[2]);
+        residuals[0] = ceres::fmax(T(0), -imaged[2]);
         return true;
     }
 
@@ -116,7 +116,7 @@ struct DirectionConstraint : CompleteConstraint<1, DirectionConstraint> {
                           const double weight) {
         return {
             new DirectionConstraint(observation[0], observation[1], observation[2], observation[3], d_world),
-            new ceres::HuberLoss(weight)
+            new ceres::ScaledLoss(new ceres::TukeyLoss(10.0), weight, ceres::TAKE_OWNERSHIP)
         };
     }
 
@@ -155,13 +155,13 @@ void compute_initial_state(const double *points_array, const double imageSize[2]
     const double fov_rad = target_fov_deg * (M_PI / 180.0);
     const double f = (imageSize[0] / 2.0) / std::tan(fov_rad / 2.0);
 
-    // 4. Calculate Distance (Z) so radius spans the FOV
+    // 4. Calculate Distance (Z) so the radius spans the FOV
     // Adding a small buffer (1.2x) so it's not touching the very edges
     const double distance = (radius * 1.2) / std::tan(fov_rad / 2.0);
 
     // We set translation to move the centroid to (0, 0, distance) in camera space
     // T = Camera_Point - R * World_Point
-    double centroid[3] = {cx, cy, cz};
+    const double centroid[3] = {cx, cy, cz};
     double rotated_centroid[3];
     extrinsics.imageVector(centroid, rotated_centroid);
     extrinsics.tx(-rotated_centroid[0]);
@@ -176,9 +176,7 @@ std::ostream &operator<<(std::ostream &lhs, const std::array<T, LEN> &rhs) {
     lhs << "[";
     for (auto it = rhs.cbegin(); it != rhs.cend(); ++it) {
         lhs << *it;
-        if (std::next(it) != rhs.cend()) {
-            lhs << ", ";
-        }
+        if (std::next(it) != rhs.cend()) lhs << ", ";
     }
     lhs << "]";;
     return lhs;
@@ -245,14 +243,14 @@ void solve_camera(const double imageSize[2], const double *points = nullptr,
         const double directionsCount = directions[0];
         std::cout << "directionsCount: " << directionsCount << "\n";
         double *currentDir = directions + 1;
-        std::array<double, 3> currentDirArray = {currentDir[0], currentDir[1], currentDir[2]};
         for (int i = 0; i < directionsCount; ++i) {
+            std::array<double, 3> currentDirArray = {currentDir[0], currentDir[1], currentDir[2]};
             std::cout << "direction" << i << ": " << currentDirArray << "\n";
             const double observationCount = currentDir[3];
             std::cout << "    observationCount: " << observationCount << "\n";
             double *currentObs = currentDir + 4;
-            std::array<double, 4> currentObsArray = {currentObs[0], currentObs[1], currentObs[2], currentObs[3]};
             for (int j = 0; j < observationCount; ++j) {
+                std::array<double, 4> currentObsArray = {currentObs[0], currentObs[1], currentObs[2], currentObs[3]};
                 // Calculate pixel length of the observed segment
                 const double length = norm(currentObsArray[2] - currentObsArray[0],
                                            currentObsArray[3] - currentObsArray[1]);
@@ -287,8 +285,17 @@ void solve_camera(const double imageSize[2], const double *points = nullptr,
 
     ceres::Solver::Summary summary;
     std::cout << "Intrinsics right before solve: " << intrinsics << "\n";
+
+    // Stage 1: Optimize Extrinsics only
+    problem.SetParameterBlockConstant(intrinsics.arr);
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.FullReport() << "\n";
+    std::cout << "Stage 1 Solver Summary:\n" << summary.FullReport() << "\n";
+
+    // Stage 2: Optimize Intrinsics and Extrinsics together
+    problem.SetParameterBlockVariable(intrinsics.arr);
+    ceres::Solve(options, &problem, &summary);
+    std::cout << "Stage 2 Solver Summary:\n" << summary.FullReport() << "\n";
+
     std::cout << "Intrinsics: " << intrinsics << "\n";
     std::cout << "Extrinsics: " << extrinsics << "\n";
     std::cout << "--- Post-Solve Residual Analysis ---\n";
@@ -296,23 +303,35 @@ void solve_camera(const double imageSize[2], const double *points = nullptr,
     // 1. Check Reprojection Residuals (Points)
     if (!pointResiduals.empty()) {
         for (const auto &record: pointResiduals) {
-            double cost = 0.0;
-            double residuals[2];
-            problem.EvaluateResidualBlock(record.blockId, false, &cost, residuals, nullptr);
-            const double pixel_error = norm(residuals[0], residuals[1]);
-            std::cout << "Point " << record.index << " Input: " << record.point << " Residual (px): " << pixel_error
-                    << " [du: " << residuals[0] << ", dv: " << residuals[1] << "]\n";
+            double costLoss = 0.0;
+            double costNonLoss = 0.0;
+            double residualsLoss[2];
+            double residualsNoLoss[2];
+            problem.EvaluateResidualBlock(record.blockId, true, &costLoss, residualsLoss, nullptr);
+            problem.EvaluateResidualBlock(record.blockId, false, &costNonLoss, residualsNoLoss, nullptr);
+            const double pixelErrorLoss = norm(residualsLoss[0], residualsLoss[1]);
+            const double pixelErrorNoLoss = norm(residualsNoLoss[0], residualsNoLoss[1]);
+            std::cout << "Point " << record.index << " Input: " << record.point << "\n";
+            std::cout << "    Lossy Residual (px): " << pixelErrorLoss << " [du: " << residualsLoss[0] << ", dv: " <<
+                    residualsLoss[1] << "] Cost: " << costLoss << "\n";
+            std::cout << "    Non Lossy Residual (px): " << pixelErrorNoLoss << " [du: " << residualsNoLoss[0] <<
+                    ", dv: " << residualsNoLoss[1] << "] Cost: " << costNonLoss << "\n";
         }
     }
 
     // 2. Check Direction Residuals
     if (!directionResiduals.empty()) {
         for (const auto &record: directionResiduals) {
-            double cost = 0.0;
-            double residual[1];
-            problem.EvaluateResidualBlock(record.blockId, false, &cost, residual, nullptr);
-            std::cout << "Direction " << record.directionIndex << " Obs " << record.observationIndex
-                    << " Residual (distance to VP): " << residual[0] << "\n";
+            double costLoss = 0.0;
+            double costNonLoss = 0.0;
+            double residualsLoss[1];
+            double residualsNoLoss[1];
+            problem.EvaluateResidualBlock(record.blockId, true, &costLoss, residualsLoss, nullptr);
+            problem.EvaluateResidualBlock(record.blockId, false, &costNonLoss, residualsNoLoss, nullptr);
+            std::cout << "Direction " << record.directionIndex << " Obs " << record.observationIndex << "\n";
+            std::cout << "    Lossy Residual (distance to VP): " << residualsLoss[0] << " Cost: " << costLoss << "\n";
+            std::cout << "    Non Lossy Residual (distance to VP): " << residualsNoLoss[0] << " Cost: " << costNonLoss
+                    << "\n";
         }
     }
     const double move_dist = std::sqrt(std::pow(intrinsics.cx() - (imageSize[0] / 2.0), 2) +
