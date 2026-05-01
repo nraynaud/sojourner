@@ -13,7 +13,8 @@ async function runTestProject () {
   // Image size 8688x5792 confirmed via file command on img-4rt6nfe0s
   const imgSize = [8688, 5792]
 
-  const vertices = doc.entities.filter(e => e.type === 'vertex' && e.geometries[imgId])
+  let vertices = doc.entities.filter(e => e.type === 'vertex' && e.geometries[imgId])
+  vertices = vertices.slice(2)
   const collectedVertices = vertices.map(v => [
     v.attributes.x, v.attributes.y, v.attributes.z,
     v.geometries[imgId].attributes.x, v.geometries[imgId].attributes.y

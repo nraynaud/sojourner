@@ -7,7 +7,7 @@
 template<size_t RES_SIZE, typename DERIVED>
 struct IntrinsicsPrior {
     static constexpr size_t kResSize = RES_SIZE;
-    using Created = std::pair<DERIVED *, ceres::LossFunction *>;
+    using Created = std::tuple<DERIVED *, ceres::LossFunction *, std::string>;
 
     template<typename T>
     bool operator()(const T intrinsics[Intrinsics<T>::kSize], T residual[kResSize]) const {
@@ -17,15 +17,18 @@ struct IntrinsicsPrior {
     }
 
     template<typename... ARGS>
-    static ceres::ResidualBlockId add(ceres::Problem &problem, Intrinsics<double> &intrinsics, ARGS &&... args) {
-        auto [prior, loss] = DERIVED::Create(std::forward<ARGS>(args)...);
-        return problem.AddResidualBlock(
+    static ConstraintRecord add(ceres::Problem &problem, Intrinsics<double> &intrinsics, ARGS &&... args) {
+        auto [prior, loss, paramStr] = DERIVED::Create(std::forward<ARGS>(args)...);
+        const auto blockId = problem.AddResidualBlock(
             new ceres::AutoDiffCostFunction<DERIVED, kResSize, Intrinsics<double>::kSize>(prior), loss, intrinsics.arr);
+        return ConstraintRecord{DERIVED::kDescription, paramStr, blockId, 0, -1};
     }
 };
 
 /** prejudge that the pixels are square */
 struct AspectRatioPrior : IntrinsicsPrior<1, AspectRatioPrior> {
+    inline static constexpr const char *kDescription = "Prior AspectRatio=1";
+
     template<typename T>
     [[nodiscard]] static bool compute(const Intrinsics<T> &intrinsics, T (&residual)[kResSize]) {
         residual[0] = intrinsics.fx() - intrinsics.fy();
@@ -33,14 +36,18 @@ struct AspectRatioPrior : IntrinsicsPrior<1, AspectRatioPrior> {
     }
 
     static Created Create(const double scale) {
+        std::ostringstream label;
+        label << "fx-fy, scale=" << scale;
         return {
-            new AspectRatioPrior(), new ceres::ScaledLoss(nullptr, scale, ceres::TAKE_OWNERSHIP)
+            new AspectRatioPrior(), new ceres::ScaledLoss(nullptr, scale, ceres::TAKE_OWNERSHIP), label.str()
         };
     }
 };
 
 /** prejudge the focal length will stay close to the initial solution */
 struct FocalPrior : IntrinsicsPrior<1, FocalPrior> {
+    inline static constexpr const char *kDescription = "Prior Focal resolution stays constant";
+
     explicit FocalPrior(const double f0) : f0(f0) {}
 
     template<typename T>
@@ -50,8 +57,10 @@ struct FocalPrior : IntrinsicsPrior<1, FocalPrior> {
     }
 
     static Created Create(const double f0, const double scale = 100.0) {
+        std::ostringstream label;
+        label << "fx-f0, f0=" << f0 << ", scale=" << scale;
         return {
-            new FocalPrior(f0), new ceres::ScaledLoss(nullptr, scale, ceres::TAKE_OWNERSHIP)
+            new FocalPrior(f0), new ceres::ScaledLoss(nullptr, scale, ceres::TAKE_OWNERSHIP), label.str()
         };
     }
 
@@ -60,6 +69,8 @@ struct FocalPrior : IntrinsicsPrior<1, FocalPrior> {
 
 /** prejudge the distortion is low */
 struct DistortionPrior : IntrinsicsPrior<1, DistortionPrior> {
+    inline static constexpr const char *kDescription = "Prior Distortion is close to 0";
+
     template<typename T>
     [[nodiscard]] static bool compute(const Intrinsics<T> &intrinsics, T (&residual)[kResSize]) {
         // Penalize k1 moving too far from 0 (weakly)
@@ -68,12 +79,14 @@ struct DistortionPrior : IntrinsicsPrior<1, DistortionPrior> {
     }
 
     static Created Create() {
-        return {new DistortionPrior(), nullptr};
+        return {new DistortionPrior(), nullptr, "k1 (no loss)"};
     }
 };
 
 /** prejudge the principal point is very close to the center */
 struct PrincipalPointPrior : IntrinsicsPrior<2, PrincipalPointPrior> {
+    inline static constexpr const char *kDescription = "Prior PrincipalPoint close to image center";
+
     PrincipalPointPrior(const double cx, const double cy) : cx_(cx), cy_(cy) {}
 
     template<typename T>
@@ -84,8 +97,10 @@ struct PrincipalPointPrior : IntrinsicsPrior<2, PrincipalPointPrior> {
     }
 
     static Created Create(const double cx, const double cy, const double principalPointCauchyRadius) {
+        std::ostringstream label;
+        label << "[cx-cx0, cy-cy0], target=[" << cx << ", " << cy << "], cauchy=" << principalPointCauchyRadius;
         return {
-            new PrincipalPointPrior(cx, cy), new ceres::CauchyLoss(principalPointCauchyRadius)
+            new PrincipalPointPrior(cx, cy), new ceres::CauchyLoss(principalPointCauchyRadius), label.str()
         };
     }
 

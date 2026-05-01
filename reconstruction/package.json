@@ -4,7 +4,7 @@
     "qunit": "^2.25.0"
   },
   "scripts": {
-    "test": "playwright test playwright-test/**.mjs"
+    "test": "playwright test"
   },
   "type": "module",
   "dependencies": {

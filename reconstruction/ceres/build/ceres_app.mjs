@@ -4653,7 +4653,7 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['emscripten_stack_get_current'] != 'undefined', 'missing Wasm export: emscripten_stack_get_current');
   assert(typeof wasmExports['memory'] != 'undefined', 'missing Wasm export: memory');
   assert(typeof wasmExports['__indirect_function_table'] != 'undefined', 'missing Wasm export: __indirect_function_table');
-  _solve_camera = Module['_solve_camera'] = createExportWrapper('solve_camera', 3);
+  _solve_camera = Module['_solve_camera'] = createExportWrapper('solve_camera', 5);
   _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
   _free = Module['_free'] = createExportWrapper('free', 1);
   _fflush = createExportWrapper('fflush', 1);
