@@ -14,7 +14,7 @@ async function runTestProject () {
   const imgSize = [8688, 5792]
 
   let vertices = doc.entities.filter(e => e.type === 'vertex' && e.geometries[imgId])
-  vertices = vertices.slice(2)
+  //vertices = vertices.slice(2)
   const collectedVertices = vertices.map(v => [
     v.attributes.x, v.attributes.y, v.attributes.z,
     v.geometries[imgId].attributes.x, v.geometries[imgId].attributes.y
