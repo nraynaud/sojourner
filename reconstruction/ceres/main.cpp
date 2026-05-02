@@ -1,10 +1,5 @@
-#pragma GCC diagnostic push
-// eigen uses the deprecated std::result_of<>, silencing warning
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <ceres/ceres.h>
 #include <ceres/covariance.h>
-#include <ceres/rotation.h>
-#pragma GCC diagnostic pop
 #include <limits>
 #include <sstream>
 #include <string>
@@ -18,6 +13,7 @@ using namespace ceres;
 using std::cout;
 using std::vector;
 using std::string;
+using std::pair;
 
 constexpr size_t kiSize = Intrinsics<double>::kSize;
 constexpr size_t keSize = Extrinsics<double>::kSize;
@@ -37,7 +33,7 @@ std::ostream &operator<<(std::ostream &lhs, const std::array<T, LEN> &rhs) {
 template<size_t RES_SIZE, typename DERIVED>
 struct CompleteConstraint {
     static constexpr size_t kResSize = RES_SIZE;
-    using Created = std::tuple<DERIVED &, LossFunction *, string>;
+    using Created = std::tuple<DERIVED, LossFunction *, string>;
 
     struct TheFunctor {
         explicit TheFunctor(DERIVED computer) : computer(std::move(computer)) {}
@@ -55,13 +51,13 @@ struct CompleteConstraint {
     };
 
     template<typename... ARGS>
-    static ConstraintRecord add(Problem &problem, Intrinsics<double> &intrinsics,
-                                Extrinsics<double> &extrinsics, ARGS &&... args) {
+    static ConstraintRecord add(Problem &problem, Intrinsics<double> &intrinsics, Extrinsics<double> &extrinsics,
+                                ARGS &&... args) {
         auto [constraint, loss, paramStr] = DERIVED::Create(std::forward<ARGS>(args)...);
         auto *functor = new TheFunctor(constraint);
         const auto blockId = problem.AddResidualBlock(
-            new AutoDiffCostFunction<TheFunctor, kResSize, kiSize, Extrinsics<
-                double>::kSize>(functor), loss, intrinsics.arr, extrinsics.arr);
+            new AutoDiffCostFunction<TheFunctor, kResSize, kiSize, Extrinsics<double>::kSize>(functor), loss,
+            intrinsics.arr, extrinsics.arr);
         return ConstraintRecord{DERIVED::kDescription, paramStr, blockId, 0, 1};
     }
 };
@@ -174,7 +170,7 @@ EvaluationMap evaluate_residuals(const vector<ConstraintRecord> &allConstraints,
         if (costFunction == nullptr) {
             continue;
         }
-        const int residualSize = costFunction->num_residuals();
+        const auto residualSize = static_cast<size_t>(costFunction->num_residuals());
         if (residualSize <= 0) {
             continue;
         }
@@ -182,26 +178,24 @@ EvaluationMap evaluate_residuals(const vector<ConstraintRecord> &allConstraints,
             .blockId = constraint.blockId,
             .constraint = &constraint,
             .residualSize = residualSize,
-            .residualsLoss = vector<double>(residualSize, 0.0),
-            .residualsNonLoss = vector<double>(residualSize, 0.0)
+            .residualsLoss = vector(residualSize, 0.0),
+            .residualsNonLoss = vector(residualSize, 0.0),
+            .intrinsicsJacobian = vector(0, 0.0),
+            .extrinsicsJacobian = vector(0, 0.0),
         };
 
         const auto &parameterBlockSizes = costFunction->parameter_block_sizes();
-        const int blockSize = static_cast<int>(parameterBlockSizes.size());
+        const auto blockSize = parameterBlockSizes.size();
         vector<double *> jacobians(blockSize, nullptr);
-        if (constraint.intrinsicsBlockIndex >= 0 &&
-            constraint.intrinsicsBlockIndex < blockSize &&
-            parameterBlockSizes[constraint.intrinsicsBlockIndex] == kiSize) {
+        if (constraint.intrinsicsBlockIndex >= 0) {
             record.hasIntrinsicsJacobian = true;
             record.intrinsicsJacobian.resize(residualSize * kiSize, 0.0);
-            jacobians[constraint.intrinsicsBlockIndex] = record.intrinsicsJacobian.data();
+            jacobians[static_cast<size_t>(constraint.intrinsicsBlockIndex)] = record.intrinsicsJacobian.data();
         }
-        if (constraint.extrinsicsBlockIndex >= 0 &&
-            constraint.extrinsicsBlockIndex < blockSize &&
-            parameterBlockSizes[constraint.extrinsicsBlockIndex] == keSize) {
+        if (constraint.extrinsicsBlockIndex >= 0) {
             record.hasExtrinsicsJacobian = true;
             record.extrinsicsJacobian.resize(residualSize * keSize, 0.0);
-            jacobians[constraint.extrinsicsBlockIndex] = record.extrinsicsJacobian.data();
+            jacobians[static_cast<size_t>(constraint.extrinsicsBlockIndex)] = record.extrinsicsJacobian.data();
         }
         if (record.hasIntrinsicsJacobian || record.hasExtrinsicsJacobian) {
             problem.EvaluateResidualBlock(record.blockId, false, &record.costNonLoss, record.residualsNonLoss.data(),
@@ -240,6 +234,187 @@ void log_directions_residuals(const EvaluationMap &residualMap, const vector<Con
                 << " Cost: " << data.costLoss << "\n";
         cout << "    Non Lossy Residual (distance to VP): " << data.residualsNonLoss[0]
                 << " Cost: " << data.costNonLoss << "\n";
+    }
+}
+
+void analyse_covariance(vector<ConstraintRecord> &allConstraints, Intrinsics<double> &intrinsics,
+                        Extrinsics<double> &extrinsics, Problem &problem, EvaluationMap &residualEvaluationMap) {
+    Covariance::Options covarianceOptions;
+    covarianceOptions.algorithm_type = DENSE_SVD;
+    covarianceOptions.apply_loss_function = false;
+    Covariance covariance(covarianceOptions);
+    const vector<std::pair<const double *, const double *> > covarianceBlocks = {
+        {intrinsics.arr, intrinsics.arr},
+        {extrinsics.arr, extrinsics.arr},
+        {intrinsics.arr, extrinsics.arr}
+    };
+    if (!covariance.Compute(covarianceBlocks, &problem)) {
+        cout << "WARNING: Covariance computation failed for solved parameters.\n";
+    } else {
+        cout << "--- Covariance Interpretation ---\n";
+
+        const auto printCovarianceInterpretation = [&covariance](
+            const double *params, const size_t size, const auto &names, const char *title) {
+            vector<double> cov(size * size);
+            covariance.GetCovarianceBlock(params, params, cov.data());
+            cout << title << "\n";
+
+            for (size_t i = 0; i < size; ++i) {
+                const double variance = cov[i * size + i];
+                if (variance < 0.0) {
+                    cout << "    " << names[i] << ": variance=" << variance
+                            << " (invalid negative variance)\n";
+                    continue;
+                }
+                const double sigma = std::sqrt(variance);
+                cout << "    " << names[i] << ", sigma=" << sigma << "\n";
+            }
+
+            cout << "    Strong parameter correlations (|rho| > 0.8):\n";
+            bool foundStrongCorrelation = false;
+            for (size_t i = 0; i < size; ++i) {
+                for (size_t j = i + 1; j < size; ++j) {
+                    const double varI = cov[i * size + i];
+                    const double varJ = cov[j * size + j];
+                    if (varI <= 0.0 || varJ <= 0.0) continue;
+                    const double rho = cov[i * size + j] / std::sqrt(varI * varJ);
+                    if (std::abs(rho) > 0.8) {
+                        foundStrongCorrelation = true;
+                        cout << "      " << names[i] << " <-> " << names[j] << ": rho=" << rho << "\n";
+                    }
+                }
+            }
+            if (!foundStrongCorrelation) {
+                cout << "      none\n";
+            }
+        };
+
+        auto intNames = Intrinsics<double>::kNames;
+        auto extNames = Extrinsics<double>::kNames;
+        printCovarianceInterpretation(intrinsics.arr, kiSize, intNames, "  Intrinsics covariance:");
+        printCovarianceInterpretation(extrinsics.arr, keSize, extNames, "  Extrinsics covariance:");
+        vector<double> intrinsicsCov(kiSize * kiSize);
+        vector<double> extrinsicsCov(keSize * keSize);
+        vector<double> crossCov(kiSize * keSize);
+        covariance.GetCovarianceBlock(intrinsics.arr, intrinsics.arr, intrinsicsCov.data());
+        covariance.GetCovarianceBlock(extrinsics.arr, extrinsics.arr, extrinsicsCov.data());
+        covariance.GetCovarianceBlock(intrinsics.arr, extrinsics.arr, crossCov.data());
+        cout << "  Intrinsics vs Extrinsics covariance:\n";
+        cout << "    Strong cross-correlations (|rho| > 0.8):\n";
+        bool foundStrongCrossCorrelation = false;
+        for (size_t i = 0; i < kiSize; ++i) {
+            for (size_t j = 0; j < keSize; ++j) {
+                const double varI = intrinsicsCov[i * kiSize + i];
+                const double varJ = extrinsicsCov[j * keSize + j];
+                if (varI <= 0.0 || varJ <= 0.0) continue;
+                const double covIJ = crossCov[i * keSize + j];
+                const double rho = covIJ / std::sqrt(varI * varJ);
+                if (std::abs(rho) > 0.8) {
+                    foundStrongCrossCorrelation = true;
+                    cout << "      " << intNames[i] << " <-> " << extNames[j] << ": rho=" << rho << "\n";
+                }
+            }
+        }
+        if (!foundStrongCrossCorrelation) {
+            cout << "      none\n";
+        }
+        struct ParameterDescriptor {
+            string name;
+            const vector<double> *covarianceBlock = nullptr;
+            size_t blockSize = 0;
+            size_t localIndex = 0;
+            bool isIntrinsic = false;
+
+            double operator[](const size_t columnIndex) const {
+                return (*covarianceBlock)[localIndex * blockSize + columnIndex];
+            }
+
+            [[nodiscard]] double diagonal() const {
+                return (*this)[localIndex];
+            }
+
+            [[nodiscard]] double getJacobian(const std::vector<double> &intrinsicsJacobian,
+                                             const std::vector<double> &extrinsicsJacobian, size_t row) const {
+                auto jacobian = isIntrinsic ? intrinsicsJacobian : extrinsicsJacobian;
+                if (jacobian.empty()) return 0.0;
+                return jacobian[localIndex * blockSize + row];
+            }
+        };
+        vector<ParameterDescriptor> parameterDescriptors;
+        parameterDescriptors.reserve(kiSize + keSize);
+        for (size_t i = 0; i < kiSize; ++i) {
+            parameterDescriptors.push_back(ParameterDescriptor{intNames[i], &intrinsicsCov, kiSize, i, true,});
+        }
+        for (size_t i = 0; i < keSize; ++i) {
+            parameterDescriptors.push_back(ParameterDescriptor{extNames[i], &extrinsicsCov, keSize, i, false,});
+        }
+        struct CouplingAttribution {
+            string pairName;
+            string strongestLinkConstraint;
+            string strongestSeparationConstraint;
+            double strongestLinkValue = -std::numeric_limits<double>::infinity();
+            double strongestSeparationValue = std::numeric_limits<double>::infinity();
+        };
+        cout << "  Jacobian-based coupling attribution:\n";
+        cout << "    (link=max positive sum(J_i*J_j), separation=min sum(J_i*J_j))\n";
+        bool foundCoupledPairs = false;
+        for (size_t i = 0; i < parameterDescriptors.size(); ++i) {
+            for (size_t j = i + 1; j < parameterDescriptors.size(); ++j) {
+                double rho = 0.0;
+                const auto &pI = parameterDescriptors[i];
+                const auto &pJ = parameterDescriptors[j];
+                const double varI = pI.diagonal();
+                const double varJ = pJ.diagonal();
+                if (varI <= 0.0 || varJ <= 0.0) continue;
+                if (pI.isIntrinsic == pJ.isIntrinsic) {
+                    rho = pI[pJ.localIndex];
+                } else {
+                    const auto &[iParam, eParam] = pI.isIntrinsic ? pair{pI, pJ} : pair{pJ, pI};
+                    rho = crossCov[iParam.localIndex * keSize + eParam.localIndex];
+                }
+                rho /= std::sqrt(varI * varJ);
+                if (std::abs(rho) <= 0.8) continue;
+                foundCoupledPairs = true;
+
+                CouplingAttribution attribution;
+                attribution.pairName = pI.name + " <-> " + pJ.name;
+                for (const auto &constraint: allConstraints) {
+                    const auto residualIt = residualEvaluationMap.find(constraint.blockId);
+                    if (residualIt == residualEvaluationMap.end() || residualIt->second.residualSize <= 0) {
+                        continue;
+                    }
+                    const auto &resRecord = residualIt->second;
+                    double contribution = 0.0;
+                    for (size_t r = 0; r < resRecord.residualSize; ++r) {
+                        contribution +=
+                                pI.getJacobian(resRecord.intrinsicsJacobian, resRecord.extrinsicsJacobian, r)
+                                * pJ.getJacobian(resRecord.intrinsicsJacobian, resRecord.extrinsicsJacobian, r);
+                    }
+                    if (contribution > attribution.strongestLinkValue) {
+                        attribution.strongestLinkValue = contribution;
+                        attribution.strongestLinkConstraint = constraint.label + " (" + constraint.parameters + ")";
+                    }
+                    if (contribution < attribution.strongestSeparationValue) {
+                        attribution.strongestSeparationValue = contribution;
+                        attribution.strongestSeparationConstraint =
+                                constraint.label + " (" + constraint.parameters + ")";
+                    }
+                }
+                cout << "    " << attribution.pairName << " (rho=" << rho << ")\n";
+                if (attribution.strongestLinkConstraint.empty()) {
+                    cout << "      strongest link: none\n";
+                    cout << "      strongest separation: none\n";
+                } else {
+                    cout << "      strongest link: " << attribution.strongestLinkConstraint
+                            << " (score=" << attribution.strongestLinkValue << ")\n";
+                    cout << "      strongest separation: " << attribution.strongestSeparationConstraint
+                            << " (score=" << attribution.strongestSeparationValue << ")\n";
+                }
+            }
+        }
+        if (!foundCoupledPairs) {
+            cout << "    No strongly coupled pairs found (|rho| > 0.8).\n";
+        }
     }
 }
 
@@ -294,14 +469,12 @@ void solve_camera(const double (&imageSize)[2], const double initial_intrinsics[
             cout << "    observationCount: " << observationCount << "\n";
             double *currentObs = currentDir + 4;
             for (int j = 0; j < observationCount; ++j) {
-                std::array<double, 4> currentObsArray = {currentObs[0], currentObs[1], currentObs[2], currentObs[3]};
+                std::array<double, 4> obs = {currentObs[0], currentObs[1], currentObs[2], currentObs[3]};
                 // Calculate pixel length of the observed segment
-                const double length = std::hypot(currentObsArray[2] - currentObsArray[0],
-                                                 currentObsArray[3] - currentObsArray[1]);
+                const double length = std::hypot(obs[2] - obs[0], obs[3] - obs[1]);
                 const double weight = std::sqrt(length / 1000.0);
-                cout << "    observation: " << currentObsArray << " length: " << length << " weight: " << weight <<
-                        "\n";
-                auto directionRecord = DirectionConstraint::add(problem, intrinsics, extrinsics, currentObsArray,
+                cout << "    observation: " << obs << " length: " << length << " weight: " << weight << "\n";
+                auto directionRecord = DirectionConstraint::add(problem, intrinsics, extrinsics, obs,
                                                                 currentDirArray, weight,
                                                                 pointReprojectionOutlierThreshold);
                 directionResiduals.push_back(directionRecord);
@@ -338,195 +511,26 @@ void solve_camera(const double (&imageSize)[2], const double initial_intrinsics[
     problem.SetParameterBlockConstant(intrinsics.arr);
     Solve(options, &problem, &summary);
     cout << "Stage 1 Solver Summary:\n" << summary.FullReport() << "\n";
+    if (summary.IsSolutionUsable()) {
+        // Stage 2: Optimize Intrinsics and Extrinsics together
+        problem.SetParameterBlockVariable(intrinsics.arr);
+        Solve(options, &problem, &summary);
+        cout << "Stage 2 Solver Summary:\n" << summary.FullReport() << "\n";
 
-    // Stage 2: Optimize Intrinsics and Extrinsics together
-    problem.SetParameterBlockVariable(intrinsics.arr);
-    Solve(options, &problem, &summary);
-    cout << "Stage 2 Solver Summary:\n" << summary.FullReport() << "\n";
-
-    cout << "Intrinsics: " << intrinsics << "\n";
-    cout << "Extrinsics: " << extrinsics << "\n";
-    const double move_dist = std::hypot(intrinsics.cx() - imageSize[0] / 2.0, intrinsics.cy() - imageSize[1] / 2.0);
-    if (move_dist > imageSize[0] * 0.05) {
-        cout << "WARNING: Significant Principal Point shift detected (" << move_dist
-                << "px). Image may be cropped or sensor is misaligned.\n";
-    }
-
-    cout << "--- Post-Solve Residual Analysis ---\n";
-
-    EvaluationMap residualEvaluationMap = evaluate_residuals(allConstraints, problem);
-    log_points_residuals(residualEvaluationMap, pointResiduals);
-    log_directions_residuals(residualEvaluationMap, directionResiduals);
-
-    Covariance::Options covarianceOptions;
-    covarianceOptions.algorithm_type = DENSE_SVD;
-    covarianceOptions.apply_loss_function = false;
-    Covariance covariance(covarianceOptions);
-    const vector<std::pair<const double *, const double *> > covarianceBlocks = {
-        {intrinsics.arr, intrinsics.arr},
-        {extrinsics.arr, extrinsics.arr},
-        {intrinsics.arr, extrinsics.arr}
-    };
-    if (!covariance.Compute(covarianceBlocks, &problem)) {
-        cout << "WARNING: Covariance computation failed for solved parameters.\n";
-    } else {
-        cout << "--- Covariance Interpretation ---\n";
-
-        const auto printCovarianceInterpretation = [&covariance](
-            const double *params, const int size, const auto &names, const char *title) {
-            vector<double> cov(size * size);
-            covariance.GetCovarianceBlock(params, params, cov.data());
-            cout << title << "\n";
-
-            for (int i = 0; i < size; ++i) {
-                const double variance = cov[i * size + i];
-                if (variance < 0.0) {
-                    cout << "    " << names[i] << ": variance=" << variance
-                            << " (invalid negative variance)\n";
-                    continue;
-                }
-                const double sigma = std::sqrt(variance);
-                cout << "    " << names[i] << ", sigma=" << sigma << "\n";
-            }
-
-            cout << "    Strong parameter correlations (|rho| > 0.8):\n";
-            bool foundStrongCorrelation = false;
-            for (int i = 0; i < size; ++i) {
-                for (int j = i + 1; j < size; ++j) {
-                    const double varI = cov[i * size + i];
-                    const double varJ = cov[j * size + j];
-                    if (varI <= 0.0 || varJ <= 0.0) continue;
-                    const double rho = cov[i * size + j] / std::sqrt(varI * varJ);
-                    if (std::abs(rho) > 0.8) {
-                        foundStrongCorrelation = true;
-                        cout << "      " << names[i] << " <-> " << names[j] << ": rho=" << rho << "\n";
-                    }
-                }
-            }
-            if (!foundStrongCorrelation) {
-                cout << "      none\n";
-            }
-        };
-
-        auto intNames = Intrinsics<double>::kNames;
-        auto extNames = Extrinsics<double>::kNames;
-        printCovarianceInterpretation(intrinsics.arr, kiSize, intNames, "  Intrinsics covariance:");
-        printCovarianceInterpretation(extrinsics.arr, keSize, extNames, "  Extrinsics covariance:");
-        vector<double> intrinsicsCov(kiSize * kiSize);
-        vector<double> extrinsicsCov(keSize * keSize);
-        vector<double> crossCov(kiSize * keSize);
-        covariance.GetCovarianceBlock(intrinsics.arr, intrinsics.arr, intrinsicsCov.data());
-        covariance.GetCovarianceBlock(extrinsics.arr, extrinsics.arr, extrinsicsCov.data());
-        covariance.GetCovarianceBlock(intrinsics.arr, extrinsics.arr, crossCov.data());
-        cout << "  Intrinsics vs Extrinsics covariance:\n";
-        cout << "    Strong cross-correlations (|rho| > 0.8):\n";
-        bool foundStrongCrossCorrelation = false;
-        for (int i = 0; i < kiSize; ++i) {
-            for (int j = 0; j < keSize; ++j) {
-                const double varI = intrinsicsCov[i * kiSize + i];
-                const double varJ = extrinsicsCov[j * keSize + j];
-                if (varI <= 0.0 || varJ <= 0.0) continue;
-                const double covIJ = crossCov[i * keSize + j];
-                const double rho = covIJ / std::sqrt(varI * varJ);
-                if (std::abs(rho) > 0.8) {
-                    foundStrongCrossCorrelation = true;
-                    cout << "      " << intNames[i] << " <-> " << extNames[j]
-                            << ": rho=" << rho << "\n";
-                }
-            }
+        cout << "Intrinsics: " << intrinsics << "\n";
+        cout << "Extrinsics: " << extrinsics << "\n";
+        const double move_dist = std::hypot(intrinsics.cx() - imageSize[0] / 2.0, intrinsics.cy() - imageSize[1] / 2.0);
+        if (move_dist > imageSize[0] * 0.05) {
+            cout << "WARNING: Significant Principal Point shift detected (" << move_dist
+                    << "px). Image may be cropped or sensor is misaligned.\n";
         }
-        if (!foundStrongCrossCorrelation) {
-            cout << "      none\n";
-        }
-        vector<string> parameterNames;
-        parameterNames.insert(parameterNames.end(), intNames.begin(), intNames.end());
-        parameterNames.insert(parameterNames.end(), extNames.begin(), extNames.end());
-        struct CouplingAttribution {
-            string pairName;
-            string strongestLinkConstraint;
-            string strongestSeparationConstraint;
-            double strongestLinkValue = -std::numeric_limits<double>::infinity();
-            double strongestSeparationValue = std::numeric_limits<double>::infinity();
-        };
-        cout << "  Jacobian-based coupling attribution:\n";
-        cout << "    (link=max positive sum(J_i*J_j), separation=min sum(J_i*J_j))\n";
-        bool foundCoupledPairs = false;
-        for (size_t i = 0; i < parameterNames.size(); ++i) {
-            for (size_t j = i + 1; j < parameterNames.size(); ++j) {
-                double rho = 0.0;
-                if (i < kiSize && j < kiSize) {
-                    const double varI = intrinsicsCov[i * kiSize + i];
-                    const double varJ = intrinsicsCov[j * kiSize + j];
-                    if (varI <= 0.0 || varJ <= 0.0) continue;
-                    rho = intrinsicsCov[i * kiSize + j] / std::sqrt(varI * varJ);
-                } else if (i >= kiSize && j >= kiSize) {
-                    const size_t ei = i - kiSize;
-                    const size_t ej = j - kiSize;
-                    const double varI = extrinsicsCov[ei * keSize + ei];
-                    const double varJ = extrinsicsCov[ej * keSize + ej];
-                    if (varI <= 0.0 || varJ <= 0.0) continue;
-                    rho = extrinsicsCov[ei * keSize + ej] / std::sqrt(varI * varJ);
-                } else {
-                    const size_t ii = i;
-                    const size_t ej = j - kiSize;
-                    const double varI = intrinsicsCov[ii * kiSize + ii];
-                    const double varJ = extrinsicsCov[ej * keSize + ej];
-                    if (varI <= 0.0 || varJ <= 0.0) continue;
-                    rho = crossCov[ii * keSize + ej] / std::sqrt(varI * varJ);
-                }
-                if (std::abs(rho) <= 0.8) continue;
-                foundCoupledPairs = true;
 
-                CouplingAttribution attribution;
-                attribution.pairName = parameterNames[i] + " <-> " + parameterNames[j];
-                for (const auto &constraint: allConstraints) {
-                    const auto residualIt = residualEvaluationMap.find(constraint.blockId);
-                    if (residualIt == residualEvaluationMap.end() || residualIt->second.residualSize <= 0) {
-                        continue;
-                    }
-                    const auto &residualRecord = residualIt->second;
-                    auto parameterJacobianAt = [&](const size_t parameterIndex, const size_t row) {
-                        if (parameterIndex < kiSize) {
-                            if (!residualRecord.hasIntrinsicsJacobian) {
-                                return 0.0;
-                            }
-                            return residualRecord.intrinsicsJacobian[row * kiSize + parameterIndex];
-                        }
-                        if (!residualRecord.hasExtrinsicsJacobian) {
-                            return 0.0;
-                        }
-                        const size_t e = parameterIndex - kiSize;
-                        return residualRecord.extrinsicsJacobian[row * keSize + e];
-                    };
-                    double contribution = 0.0;
-                    for (int r = 0; r < residualRecord.residualSize; ++r) {
-                        contribution += parameterJacobianAt(i, r) * parameterJacobianAt(j, r);
-                    }
-                    if (contribution > attribution.strongestLinkValue) {
-                        attribution.strongestLinkValue = contribution;
-                        attribution.strongestLinkConstraint = constraint.label + " (" + constraint.parameters + ")";
-                    }
-                    if (contribution < attribution.strongestSeparationValue) {
-                        attribution.strongestSeparationValue = contribution;
-                        attribution.strongestSeparationConstraint =
-                                constraint.label + " (" + constraint.parameters + ")";
-                    }
-                }
-                cout << "    " << attribution.pairName << " (rho=" << rho << ")\n";
-                if (attribution.strongestLinkConstraint.empty()) {
-                    cout << "      strongest link: none\n";
-                    cout << "      strongest separation: none\n";
-                } else {
-                    cout << "      strongest link: " << attribution.strongestLinkConstraint
-                            << " (score=" << attribution.strongestLinkValue << ")\n";
-                    cout << "      strongest separation: " << attribution.strongestSeparationConstraint
-                            << " (score=" << attribution.strongestSeparationValue << ")\n";
-                }
-            }
-        }
-        if (!foundCoupledPairs) {
-            cout << "    No strongly coupled pairs found (|rho| > 0.8).\n";
-        }
+        cout << "--- Post-Solve Residual Analysis ---\n";
+
+        EvaluationMap residualEvaluationMap = evaluate_residuals(allConstraints, problem);
+        log_points_residuals(residualEvaluationMap, pointResiduals);
+        log_directions_residuals(residualEvaluationMap, directionResiduals);
+        analyse_covariance(allConstraints, intrinsics, extrinsics, problem, residualEvaluationMap);
     }
 }
 }

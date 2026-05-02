@@ -1,5 +1,6 @@
 #pragma once
 #include <ceres/ceres.h>
+#include <ceres/rotation.h>
 
 // templated because autodiff uses dual number for its computations
 template<typename NUM_T>
@@ -148,7 +149,7 @@ struct ConstraintRecord {
 struct ResidualEvaluationRecord {
     ceres::ResidualBlockId blockId{};
     const ConstraintRecord *constraint = nullptr;
-    int residualSize = 0;
+    size_t residualSize = 0;
     double costLoss = 0.0;
     double costNonLoss = 0.0;
     std::vector<double> residualsLoss;
@@ -157,4 +158,6 @@ struct ResidualEvaluationRecord {
     std::vector<double> extrinsicsJacobian;
     bool hasIntrinsicsJacobian = false;
     bool hasExtrinsicsJacobian = false;
+
+
 };

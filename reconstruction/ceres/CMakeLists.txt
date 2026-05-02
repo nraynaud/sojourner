@@ -7,6 +7,8 @@ if (NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 endif ()
 
 set(CMAKE_CXX_STANDARD 14)
+# flags that have to be the same everywhere for precompiled headers to work
+set(CMAKE_CXX_FLAGS "-mmutable-globals")
 set(CMAKE_CXX_FLAGS_RELEASE "-flto -O3 -DNDEBUG -msse2 -msimd128 -mrelaxed-simd")
 set(CMAKE_CXX_FLAGS_DEBUG "-gsource-map -g1 -O0")
 
@@ -32,10 +34,9 @@ set(EIGEN_BUILD_DOC OFF)
 set(EIGEN_BUILD_DEMOS OFF)
 set(EIGEN_BUILD_PKGCONFIG OFF)
 set(EIGEN_BUILD_CMAKE_PACKAGE ON)
-FetchContent_MakeAvailable(Eigen3)
+set(EIGEN_HAS_STD_RESULT_OF OFF)
 
-# ceres can't find Eigen3 without this alias
-add_library(Eigen3::Eigen ALIAS eigen)
+FetchContent_MakeAvailable(Eigen3)
 
 set(CERES_THREADING_MODEL NO_THREADS)
 set(CERES_USE_CXX_THREADS OFF)
@@ -48,11 +49,14 @@ set(LAPACK OFF)
 set(USE_CUDA OFF)
 set(EIGENSPARSE OFF)
 set(SCHUR_SPECIALIZATIONS OFF)
-# avoid eigen going into the x86 intrinsics code path
-add_definitions(-DEIGEN_DONT_VECTORIZE=1)
+# avoid eigen going into the native SIMD intrinsics code path
+target_compile_definitions(eigen INTERFACE EIGEN_DONT_VECTORIZE=1)
+# eigen uses the deprecated std::result_of<>
+target_compile_definitions(eigen INTERFACE EIGEN_HAS_STD_RESULT_OF=0)
+# ceres can't find Eigen3 without this alias
+add_library(Eigen3::Eigen ALIAS eigen)
 # eigen and Ceres uninstall targets clash names
 set(PROVIDE_UNINSTALL_TARGET OFF)
-#  -DCMAKE_EXE_LINKER_FLAGS="\n    -O3\n    -s ALLOW_MEMORY_GROWTH=1\n    -s ENVIRONMENT=web\n    -s MODULARIZE=1\n    -s EXPORT_ES6=1\n    -s SINGLE_FILE=1\n    -s FILESYSTEM=0\n    -s ASSERTIONS=0\n    -s DISABLE_EXCEPTION_CATCHING=1\n
 
 FetchContent_Declare(
         Ceres
@@ -61,16 +65,29 @@ FetchContent_Declare(
         GIT_SHALLOW TRUE
         OVERRIDE_FIND_PACKAGE
 )
-FetchContent_MakeAvailable(Ceres)
 
-# eigen uses the deprecated std::result_of<>, silencing warning
-target_compile_options(ceres PRIVATE -Wno-deprecated)
-target_compile_options(ceres_internal PRIVATE -Wno-deprecated)
+FetchContent_GetProperties(Ceres)
+if (NOT ceres_POPULATED)
+    FetchContent_Populate(Ceres)
+    file(READ "${ceres_SOURCE_DIR}/CMakeLists.txt" CERES_CMAKELISTS)
+    string(REPLACE
+            "set(CMAKE_POSITION_INDEPENDENT_CODE ON)"
+            "set(CMAKE_POSITION_INDEPENDENT_CODE OFF)"
+            CERES_CMAKELISTS
+            "${CERES_CMAKELISTS}"
+    )
+    file(WRITE "${ceres_SOURCE_DIR}/CMakeLists.txt" "${CERES_CMAKELISTS}")
+    add_subdirectory("${ceres_SOURCE_DIR}" "${ceres_BINARY_DIR}")
+endif ()
+
+set(PCH_INSTANTIATE_TEMPLATES=ON)
 
 set(CMAKE_EXECUTABLE_SUFFIX ".mjs")
 add_executable(ceres_app main.cpp priors.h types.h)
+set_target_properties(ceres_app PROPERTIES POSITION_INDEPENDENT_CODE FALSE)
 target_link_libraries(ceres_app PRIVATE Ceres::ceres)
-target_compile_options(ceres_app PRIVATE -Wall)
+target_compile_options(ceres_app PRIVATE -Wall -Wextra -Wconversion -Wdouble-promotion)
+target_precompile_headers(ceres_app PRIVATE <ceres/ceres.h> <ceres/covariance.h> <ceres/rotation.h>)
 # ---- Emscripten flags ----
 target_link_options(ceres_app PRIVATE
         "SHELL:-s MODULARIZE=1 -s EXPORT_ES6=1 -s WASM=1 -s ENVIRONMENT=web,worker,node -s INVOKE_RUN=0"
