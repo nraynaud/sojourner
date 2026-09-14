@@ -1,8 +1,9 @@
 #pragma once
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
+#include <sstream>
 
-// templated because autodiff uses dual number for its computations
+// templated because autodiff uses JETs for its computations
 template<typename NUM_T>
 struct Intrinsics {
     static constexpr size_t kSize = 5;
@@ -10,6 +11,7 @@ struct Intrinsics {
     static constexpr size_t k1Index = 4;
 
     explicit Intrinsics(const NUM_T arr[kSize]) : arr{arr[0], arr[1], arr[2], arr[3], arr[4]} {}
+    Intrinsics() : arr{0.0, 0.0, 0.0, 0.0, 0.0} {}
 
     [[nodiscard]] NUM_T fx() const { return arr[0]; }
     [[nodiscard]] NUM_T fy() const { return arr[1]; }
@@ -61,6 +63,17 @@ struct Intrinsics {
         problem.SetParameterUpperBound(arr, k1Index, 0.44);
     }
 
+    [[nodiscard]] std::string to_json() const {
+        std::ostringstream ss;
+        ss << "{";
+        for (size_t i = 0; i < kSize; ++i) {
+            if (i > 0) ss << ", ";
+            ss << "\"" << kNames[i] << "\": " << arr[i];
+        }
+        ss << "}";
+        return ss.str();
+    }
+
     NUM_T arr[kSize];
 };
 
@@ -70,13 +83,13 @@ std::ostream &operator<<(std::ostream &lhs, const Intrinsics<NUM_T> &i) {
     return lhs;
 }
 
-
 template<typename NUM_T>
 struct Extrinsics {
     static constexpr size_t kSize = 6;
     static constexpr std::array<const char *, kSize> kNames = {"rx", "ry", "rz", "tx", "ty", "tz"};
 
     explicit Extrinsics(const NUM_T arr[kSize]) : arr{arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]} {}
+    Extrinsics() : arr{0.0, 0.0, 0.0, 0.0, 0.0, 0.0} {}
 
     [[nodiscard]] NUM_T rx() const { return arr[0]; }
     [[nodiscard]] NUM_T ry() const { return arr[1]; }
@@ -109,6 +122,63 @@ struct Extrinsics {
         return true;
     }
 
+    [[nodiscard]] std::string to_json() const {
+        std::ostringstream ss;
+        ss << "{";
+        for (size_t i = 0; i < kSize; ++i) {
+            if (i > 0) ss << ", ";
+            ss << "\"" << kNames[i] << "\": " << arr[i];
+        }
+        ss << "}";
+        return ss.str();
+    }
+
+    [[nodiscard]] std::array<NUM_T, 3> cameraPosition() const {
+        const NUM_T inv_r[3] = {-rx(), -ry(), -rz()};
+        const NUM_T neg_t[3] = {-tx(), -ty(), -tz()};
+        NUM_T pos[3];
+        ceres::AngleAxisRotatePoint(inv_r, neg_t, pos);
+        return {pos[0], pos[1], pos[2]};
+    }
+
+    [[nodiscard]] std::array<NUM_T, 3> lookAt() const {
+        const auto pos = cameraPosition();
+        const NUM_T inv_r[3] = {-rx(), -ry(), -rz()};
+        const NUM_T forward[3] = {NUM_T(0), NUM_T(0), NUM_T(1)};
+        NUM_T dir[3];
+        ceres::AngleAxisRotatePoint(inv_r, forward, dir);
+        return {pos[0] + dir[0], pos[1] + dir[1], pos[2] + dir[2]};
+    }
+
+    [[nodiscard]] std::array<NUM_T, 3> up() const {
+        const NUM_T inv_r[3] = {-rx(), -ry(), -rz()};
+        const NUM_T up_dir[3] = {NUM_T(0), NUM_T(-1), NUM_T(0)};
+        NUM_T u[3];
+        ceres::AngleAxisRotatePoint(inv_r, up_dir, u);
+        return {u[0], u[1], u[2]};
+    }
+
+    [[nodiscard]] std::string to_camera_json() const {
+        const auto pos = cameraPosition();
+        const auto look = lookAt();
+        const auto u = up();
+        std::ostringstream ss;
+        ss << "{"
+           << "\"position\": [" << pos[0] << ", " << pos[1] << ", " << pos[2] << "], "
+           << "\"lookAt\": [" << look[0] << ", " << look[1] << ", " << look[2] << "], "
+           << "\"up\": [" << u[0] << ", " << u[1] << ", " << u[2] << "]"
+           << "}";
+        return ss.str();
+    }
+
+    [[nodiscard]] std::string camera_to_json() const {
+        return to_camera_json();
+    }
+
+    [[nodiscard]] std::string camera_json() const {
+        return to_camera_json();
+    }
+
     NUM_T arr[kSize];
 };
 
@@ -119,7 +189,6 @@ std::ostream &operator<<(std::ostream &lhs, const Extrinsics<NUM_T> &e) {
     return lhs;
 }
 
-
 struct Point5D {
     double X, Y, Z; // known 3D
     double u, v; // observed 2D
@@ -129,7 +198,7 @@ struct Point5D {
     }
 
     static Point5D fromArray(const double *array) {
-        return Point5D{array[0], array[1], array[2], array[3], array[4]};
+        return Point5D{.X = array[0], .Y = array[1], .Z = array[2], .u = array[3], .v = array[4]};
     }
 };
 
@@ -141,9 +210,11 @@ inline std::ostream &operator<<(std::ostream &lhs, const Point5D &p) {
 struct ConstraintRecord {
     std::string label;
     std::string parameters;
+    std::string residualDesc;
     ceres::ResidualBlockId blockId;
     int intrinsicsBlockIndex = -1;
     int extrinsicsBlockIndex = -1;
+    size_t residualSize = 0;
 };
 
 struct ResidualEvaluationRecord {
@@ -158,6 +229,4 @@ struct ResidualEvaluationRecord {
     std::vector<double> extrinsicsJacobian;
     bool hasIntrinsicsJacobian = false;
     bool hasExtrinsicsJacobian = false;
-
-
 };

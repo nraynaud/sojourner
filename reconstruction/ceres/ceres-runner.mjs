@@ -29,7 +29,11 @@ async function runTestProject () {
     byDirection[key].push([g.x1, g.y1, g.x2, g.y2])
   }
 
-  runCeres(imgSize, collectedVertices, byDirection)
+  const res = runCeres(imgSize, collectedVertices, byDirection)
+  console.log(res)
+  if (res.finalCost>1) {
+      throw new Error('Ceres failed to converge')
+  }
 }
 
 runTestProject().catch(console.error)

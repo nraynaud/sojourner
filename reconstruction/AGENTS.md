@@ -4,7 +4,7 @@
 - avoid global variables
 - pass the top elements you need as arguments to the constructor rather than searching the document from the class
 - avoid inline CSS
-- you can build the ceres solver by going into the 'ceres' folder and running `emccc cmake -S . -B build && emccc cmake --build build -j`
+- you can build the ceres solver by going into the 'ceres' folder and running `emcc cmake -S . -B build && emcc cmake --build build -j`
 - the tests are run by `npm run test` in the 'reconstruction' folder.
 ## Rules
 

@@ -1,536 +1,153 @@
-#include <ceres/ceres.h>
-#include <ceres/covariance.h>
-#include <limits>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
+#include "reconstruction.h"
 
-#include "priors.h"
-#include "types.h"
 
-using namespace ceres;
-using std::cout;
-using std::vector;
-using std::string;
-using std::pair;
-
-constexpr size_t kiSize = Intrinsics<double>::kSize;
-constexpr size_t keSize = Extrinsics<double>::kSize;
-
-template<typename T, size_t LEN>
-std::ostream &operator<<(std::ostream &lhs, const std::array<T, LEN> &rhs) {
-    lhs << "[";
-    for (auto it = rhs.cbegin(); it != rhs.cend(); ++it) {
-        lhs << *it;
-        if (std::next(it) != rhs.cend()) lhs << ", ";
-    }
-    lhs << "]";;
-    return lhs;
-}
-
-/** this convoluted system checks at compile-time the size of the intrinsics and the residuals */
-template<size_t RES_SIZE, typename DERIVED>
-struct CompleteConstraint {
-    static constexpr size_t kResSize = RES_SIZE;
-    using Created = std::tuple<DERIVED, LossFunction *, string>;
-
-    struct TheFunctor {
-        explicit TheFunctor(DERIVED computer) : computer(std::move(computer)) {}
-
-        template<typename T>
-        bool operator()(const T intrinsics[Intrinsics<T>::kSize], const T extrinsics[Extrinsics<T>::kSize],
-                        T residual[kResSize]) const {
-            Intrinsics<T> i(intrinsics);
-            Extrinsics<T> e(extrinsics);
-            auto &residualArray = *reinterpret_cast<T (*)[kResSize]>(residual);
-            return computer.template compute<T>(i, e, residualArray);
-        }
-
-        const DERIVED computer;
-    };
-
-    template<typename... ARGS>
-    static ConstraintRecord add(Problem &problem, Intrinsics<double> &intrinsics, Extrinsics<double> &extrinsics,
-                                ARGS &&... args) {
-        auto [constraint, loss, paramStr] = DERIVED::Create(std::forward<ARGS>(args)...);
-        auto *functor = new TheFunctor(constraint);
-        const auto blockId = problem.AddResidualBlock(
-            new AutoDiffCostFunction<TheFunctor, kResSize, kiSize, Extrinsics<double>::kSize>(functor), loss,
-            intrinsics.arr, extrinsics.arr);
-        return ConstraintRecord{DERIVED::kDescription, paramStr, blockId, 0, 1};
-    }
-};
-
-struct ReprojectionError : CompleteConstraint<2, ReprojectionError> {
-    static constexpr const char *kDescription = "Reprojection";
-
-    explicit ReprojectionError(const Point5D &p) : p_(p) {}
-
-    template<typename T>
-    bool compute(const Intrinsics<T> &intrinsics, const Extrinsics<T> &extrinsics, T (&residuals)[kResSize]) const {
-        T p[3];
-        T point3d[] = {T(p_.X), T(p_.Y), T(p_.Z)};
-        extrinsics.imagePoint(point3d, p);
-        T imaged[2];
-        const bool notTooClose = intrinsics.imagePoint(p, imaged);
-        if (!notTooClose) return false;
-        residuals[0] = imaged[0] - T(p_.u);
-        residuals[1] = imaged[1] - T(p_.v);
-        return true;
-    }
-
-    static Created Create(const Point5D &p, const double huberLoss) {
-        std::ostringstream label;
-        label << " Point " << p << ", huber=" << huberLoss;
-        ReprojectionError reprojection_error(p);
-        return {reprojection_error, new HuberLoss(huberLoss), label.str()};
-    }
-
-    Point5D p_;
-};
-
-/** Ensure points are in front of the camera */
-struct PositiveDepthConstraint : CompleteConstraint<1, PositiveDepthConstraint> {
-    static constexpr const char *kDescription = "PositiveDepth point";
-
-    explicit PositiveDepthConstraint(const std::array<double, 3> &X) : X_{X[0], X[1], X[2]} {}
-
-    template<typename T>
-    bool compute([[maybe_unused]] const Intrinsics<T> &_intrinsics, const Extrinsics<T> &extrinsics,
-                 T (&residuals)[kResSize]) const {
-        T p[3] = {T(X_[0]), T(X_[1]), T(X_[2])};
-        T imaged[3];
-        extrinsics.imagePoint(p, imaged);
-        residuals[0] = ceres::fmax(T(0), -imaged[2]);
-        return true;
-    }
-
-    static Created Create(const std::array<double, 3> &point3d) {
-        double scale = 1e-1;
-        std::ostringstream label;
-        label << " Point " << point3d << ", scale=" << scale;
-        PositiveDepthConstraint positive_depth_constraint(point3d);
-        return {positive_depth_constraint, new ScaledLoss(nullptr, scale, TAKE_OWNERSHIP), label.str()};
-    }
-
-    std::array<double, 3> X_;
-};
-
-struct DirectionConstraint : CompleteConstraint<1, DirectionConstraint> {
-    static constexpr const char *kDescription = "Direction";
-
-    explicit DirectionConstraint(double x1, double y1,
-                                 double x2, double y2,
-                                 const std::array<double, 3> &d_world)
-        : d_world_(d_world) {
-        // 2D line in homogeneous coordinates: l = (x1, y1, 1) x (x2, y2, 1)
-        // This vector is the normal to the plane in camera space
-        A_ = y1 - y2;
-        B_ = x2 - x1;
-        C_ = x1 * y2 - x2 * y1;
-    }
-
-    template<typename T>
-    bool compute(const Intrinsics<T> &intrinsics, const Extrinsics<T> &extrinsics, T (&residual)[kResSize]) const {
-        T d_cam[3];
-        T d_world[3] = {T(d_world_[0]), T(d_world_[1]), T(d_world_[2])};
-        extrinsics.imageVector(d_world, d_cam);
-        // Plane normal in camera space: n = K^T * l
-        T nx = T(A_) * intrinsics.fx();
-        T ny = T(B_) * intrinsics.fy();
-        T nz = T(A_) * intrinsics.cx() + T(B_) * intrinsics.cy() + T(C_);
-        T n_norm = ceres::hypot(nx, ny, nz);
-        // The sine of the angle between d_cam and the plane
-        T sin_theta = (nx * d_cam[0] + ny * d_cam[1] + nz * d_cam[2]) / n_norm;
-        // Convert to pixel error
-        residual[0] = sin_theta * intrinsics.fx();
-        return true;
-    }
-
-    static Created Create(const std::array<double, 4> &obs, const std::array<double, 3> &d_world,
-                          const double weight, const double threshold) {
-        std::ostringstream label;
-        label << " World Direction " << d_world << ", scale=" << weight << ", TukeyLoss=" << threshold;
-        DirectionConstraint constraint(obs[0], obs[1], obs[2], obs[3], d_world);
-        return {constraint, new ScaledLoss(new TukeyLoss(threshold), weight, TAKE_OWNERSHIP), label.str()};
-    }
-
-    double A_, B_, C_;
-    const std::array<double, 3> d_world_;
-};
-
-using EvaluationMap = std::unordered_map<ResidualBlockId, ResidualEvaluationRecord>;
-
-EvaluationMap evaluate_residuals(const vector<ConstraintRecord> &allConstraints, const Problem &problem) {
-    EvaluationMap residualEvaluationMap;
-    residualEvaluationMap.reserve(allConstraints.size());
-    for (const auto &constraint: allConstraints) {
-        const auto *costFunction = problem.GetCostFunctionForResidualBlock(constraint.blockId);
-        if (costFunction == nullptr) {
-            continue;
-        }
-        const auto residualSize = static_cast<size_t>(costFunction->num_residuals());
-        if (residualSize <= 0) {
-            continue;
-        }
-        ResidualEvaluationRecord record{
-            .blockId = constraint.blockId,
-            .constraint = &constraint,
-            .residualSize = residualSize,
-            .residualsLoss = vector(residualSize, 0.0),
-            .residualsNonLoss = vector(residualSize, 0.0),
-            .intrinsicsJacobian = vector(0, 0.0),
-            .extrinsicsJacobian = vector(0, 0.0),
-        };
-
-        const auto &parameterBlockSizes = costFunction->parameter_block_sizes();
-        const auto blockSize = parameterBlockSizes.size();
-        vector<double *> jacobians(blockSize, nullptr);
-        if (constraint.intrinsicsBlockIndex >= 0) {
-            record.hasIntrinsicsJacobian = true;
-            record.intrinsicsJacobian.resize(residualSize * kiSize, 0.0);
-            jacobians[static_cast<size_t>(constraint.intrinsicsBlockIndex)] = record.intrinsicsJacobian.data();
-        }
-        if (constraint.extrinsicsBlockIndex >= 0) {
-            record.hasExtrinsicsJacobian = true;
-            record.extrinsicsJacobian.resize(residualSize * keSize, 0.0);
-            jacobians[static_cast<size_t>(constraint.extrinsicsBlockIndex)] = record.extrinsicsJacobian.data();
-        }
-        if (record.hasIntrinsicsJacobian || record.hasExtrinsicsJacobian) {
-            problem.EvaluateResidualBlock(record.blockId, false, &record.costNonLoss, record.residualsNonLoss.data(),
-                                          jacobians.data());
-        }
-        problem.EvaluateResidualBlock(record.blockId, true, &record.costLoss, record.residualsLoss.data(), nullptr);
-        residualEvaluationMap.emplace(record.blockId, std::move(record));
-    }
-    return residualEvaluationMap;
-}
-
-void log_points_residuals(const EvaluationMap &residualMap, const vector<ConstraintRecord> &pointResiduals) {
-    for (const auto &record: pointResiduals) {
-        const auto residualIt = residualMap.find(record.blockId);
-        if (residualIt == residualMap.end() || residualIt->second.residualSize < 2) {
-            continue;
-        }
-        const auto &data = residualIt->second;
-        cout << record.label << "\n";
-        cout << "    Params: " << record.parameters << "\n";
-        cout << "    Lossy Residual (px): " << std::sqrt(data.costLoss * 2) << " [du: " << data.residualsLoss[0] <<
-                ", dv: " << data.residualsLoss[1] << "] Cost: " << data.costLoss << "\n";
-    }
-}
-
-void log_directions_residuals(const EvaluationMap &residualMap, const vector<ConstraintRecord> &directionResiduals) {
-    for (const auto &record: directionResiduals) {
-        const auto residualIt = residualMap.find(record.blockId);
-        if (residualIt == residualMap.end() || residualIt->second.residualSize < 1) {
-            continue;
-        }
-        const auto &data = residualIt->second;
-        cout << record.label << "\n";
-        cout << "    Params: " << record.parameters << "\n";
-        cout << "    Lossy Residual (distance to VP): " << data.residualsLoss[0]
-                << " Cost: " << data.costLoss << "\n";
-        cout << "    Non Lossy Residual (distance to VP): " << data.residualsNonLoss[0]
-                << " Cost: " << data.costNonLoss << "\n";
-    }
-}
-
-void analyse_covariance(vector<ConstraintRecord> &allConstraints, Intrinsics<double> &intrinsics,
-                        Extrinsics<double> &extrinsics, Problem &problem, EvaluationMap &residualEvaluationMap) {
-    Covariance::Options covarianceOptions;
-    covarianceOptions.algorithm_type = DENSE_SVD;
-    covarianceOptions.apply_loss_function = false;
-    Covariance covariance(covarianceOptions);
-    const vector<std::pair<const double *, const double *> > covarianceBlocks = {
-        {intrinsics.arr, intrinsics.arr},
-        {extrinsics.arr, extrinsics.arr},
-        {intrinsics.arr, extrinsics.arr}
-    };
-    if (!covariance.Compute(covarianceBlocks, &problem)) {
-        cout << "WARNING: Covariance computation failed for solved parameters.\n";
-    } else {
-        cout << "--- Covariance Interpretation ---\n";
-
-        const auto printCovarianceInterpretation = [&covariance](
-            const double *params, const size_t size, const auto &names, const char *title) {
-            vector<double> cov(size * size);
-            covariance.GetCovarianceBlock(params, params, cov.data());
-            cout << title << "\n";
-
-            for (size_t i = 0; i < size; ++i) {
-                const double variance = cov[i * size + i];
-                if (variance < 0.0) {
-                    cout << "    " << names[i] << ": variance=" << variance
-                            << " (invalid negative variance)\n";
-                    continue;
-                }
-                const double sigma = std::sqrt(variance);
-                cout << "    " << names[i] << ", sigma=" << sigma << "\n";
-            }
-
-            cout << "    Strong parameter correlations (|rho| > 0.8):\n";
-            bool foundStrongCorrelation = false;
-            for (size_t i = 0; i < size; ++i) {
-                for (size_t j = i + 1; j < size; ++j) {
-                    const double varI = cov[i * size + i];
-                    const double varJ = cov[j * size + j];
-                    if (varI <= 0.0 || varJ <= 0.0) continue;
-                    const double rho = cov[i * size + j] / std::sqrt(varI * varJ);
-                    if (std::abs(rho) > 0.8) {
-                        foundStrongCorrelation = true;
-                        cout << "      " << names[i] << " <-> " << names[j] << ": rho=" << rho << "\n";
-                    }
-                }
-            }
-            if (!foundStrongCorrelation) {
-                cout << "      none\n";
-            }
-        };
-
-        auto intNames = Intrinsics<double>::kNames;
-        auto extNames = Extrinsics<double>::kNames;
-        printCovarianceInterpretation(intrinsics.arr, kiSize, intNames, "  Intrinsics covariance:");
-        printCovarianceInterpretation(extrinsics.arr, keSize, extNames, "  Extrinsics covariance:");
-        vector<double> intrinsicsCov(kiSize * kiSize);
-        vector<double> extrinsicsCov(keSize * keSize);
-        vector<double> crossCov(kiSize * keSize);
-        covariance.GetCovarianceBlock(intrinsics.arr, intrinsics.arr, intrinsicsCov.data());
-        covariance.GetCovarianceBlock(extrinsics.arr, extrinsics.arr, extrinsicsCov.data());
-        covariance.GetCovarianceBlock(intrinsics.arr, extrinsics.arr, crossCov.data());
-        cout << "  Intrinsics vs Extrinsics covariance:\n";
-        cout << "    Strong cross-correlations (|rho| > 0.8):\n";
-        bool foundStrongCrossCorrelation = false;
-        for (size_t i = 0; i < kiSize; ++i) {
-            for (size_t j = 0; j < keSize; ++j) {
-                const double varI = intrinsicsCov[i * kiSize + i];
-                const double varJ = extrinsicsCov[j * keSize + j];
-                if (varI <= 0.0 || varJ <= 0.0) continue;
-                const double covIJ = crossCov[i * keSize + j];
-                const double rho = covIJ / std::sqrt(varI * varJ);
-                if (std::abs(rho) > 0.8) {
-                    foundStrongCrossCorrelation = true;
-                    cout << "      " << intNames[i] << " <-> " << extNames[j] << ": rho=" << rho << "\n";
-                }
-            }
-        }
-        if (!foundStrongCrossCorrelation) {
-            cout << "      none\n";
-        }
-        struct ParameterDescriptor {
-            string name;
-            const vector<double> *covarianceBlock = nullptr;
-            size_t blockSize = 0;
-            size_t localIndex = 0;
-            bool isIntrinsic = false;
-
-            double operator[](const size_t columnIndex) const {
-                return (*covarianceBlock)[localIndex * blockSize + columnIndex];
-            }
-
-            [[nodiscard]] double diagonal() const {
-                return (*this)[localIndex];
-            }
-
-            [[nodiscard]] double getJacobian(const std::vector<double> &intrinsicsJacobian,
-                                             const std::vector<double> &extrinsicsJacobian, size_t row) const {
-                auto jacobian = isIntrinsic ? intrinsicsJacobian : extrinsicsJacobian;
-                if (jacobian.empty()) return 0.0;
-                return jacobian[localIndex * blockSize + row];
-            }
-        };
-        vector<ParameterDescriptor> parameterDescriptors;
-        parameterDescriptors.reserve(kiSize + keSize);
-        for (size_t i = 0; i < kiSize; ++i) {
-            parameterDescriptors.push_back(ParameterDescriptor{intNames[i], &intrinsicsCov, kiSize, i, true,});
-        }
-        for (size_t i = 0; i < keSize; ++i) {
-            parameterDescriptors.push_back(ParameterDescriptor{extNames[i], &extrinsicsCov, keSize, i, false,});
-        }
-        struct CouplingAttribution {
-            string pairName;
-            string strongestLinkConstraint;
-            string strongestSeparationConstraint;
-            double strongestLinkValue = -std::numeric_limits<double>::infinity();
-            double strongestSeparationValue = std::numeric_limits<double>::infinity();
-        };
-        cout << "  Jacobian-based coupling attribution:\n";
-        cout << "    (link=max positive sum(J_i*J_j), separation=min sum(J_i*J_j))\n";
-        bool foundCoupledPairs = false;
-        for (size_t i = 0; i < parameterDescriptors.size(); ++i) {
-            for (size_t j = i + 1; j < parameterDescriptors.size(); ++j) {
-                double rho = 0.0;
-                const auto &pI = parameterDescriptors[i];
-                const auto &pJ = parameterDescriptors[j];
-                const double varI = pI.diagonal();
-                const double varJ = pJ.diagonal();
-                if (varI <= 0.0 || varJ <= 0.0) continue;
-                if (pI.isIntrinsic == pJ.isIntrinsic) {
-                    rho = pI[pJ.localIndex];
-                } else {
-                    const auto &[iParam, eParam] = pI.isIntrinsic ? pair{pI, pJ} : pair{pJ, pI};
-                    rho = crossCov[iParam.localIndex * keSize + eParam.localIndex];
-                }
-                rho /= std::sqrt(varI * varJ);
-                if (std::abs(rho) <= 0.8) continue;
-                foundCoupledPairs = true;
-
-                CouplingAttribution attribution;
-                attribution.pairName = pI.name + " <-> " + pJ.name;
-                for (const auto &constraint: allConstraints) {
-                    const auto residualIt = residualEvaluationMap.find(constraint.blockId);
-                    if (residualIt == residualEvaluationMap.end() || residualIt->second.residualSize <= 0) {
-                        continue;
-                    }
-                    const auto &resRecord = residualIt->second;
-                    double contribution = 0.0;
-                    for (size_t r = 0; r < resRecord.residualSize; ++r) {
-                        contribution +=
-                                pI.getJacobian(resRecord.intrinsicsJacobian, resRecord.extrinsicsJacobian, r)
-                                * pJ.getJacobian(resRecord.intrinsicsJacobian, resRecord.extrinsicsJacobian, r);
-                    }
-                    if (contribution > attribution.strongestLinkValue) {
-                        attribution.strongestLinkValue = contribution;
-                        attribution.strongestLinkConstraint = constraint.label + " (" + constraint.parameters + ")";
-                    }
-                    if (contribution < attribution.strongestSeparationValue) {
-                        attribution.strongestSeparationValue = contribution;
-                        attribution.strongestSeparationConstraint =
-                                constraint.label + " (" + constraint.parameters + ")";
-                    }
-                }
-                cout << "    " << attribution.pairName << " (rho=" << rho << ")\n";
-                if (attribution.strongestLinkConstraint.empty()) {
-                    cout << "      strongest link: none\n";
-                    cout << "      strongest separation: none\n";
-                } else {
-                    cout << "      strongest link: " << attribution.strongestLinkConstraint
-                            << " (score=" << attribution.strongestLinkValue << ")\n";
-                    cout << "      strongest separation: " << attribution.strongestSeparationConstraint
-                            << " (score=" << attribution.strongestSeparationValue << ")\n";
-                }
-            }
-        }
-        if (!foundCoupledPairs) {
-            cout << "    No strongly coupled pairs found (|rho| > 0.8).\n";
-        }
-    }
-}
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+// global options that JS functions can edit before running the solver
+static ReconstructionProblem rProblem;
+#pragma clang diagnostic pop
 
 extern "C" {
 /**
- *
- * @param imageSize
- * @param initial_intrinsics
- * @param initial_extrinsics
- * @param points array of array[5] of doubles
- * @param directions
+ * @return a malloc'd C string the caller must free()
  */
-void solve_camera(const double (&imageSize)[2], const double initial_intrinsics[5], const double initial_extrinsics[6],
-                  const double *points = nullptr,
-                  double *directions = nullptr) {
-    vector<ConstraintRecord> pointResiduals;
-    vector<ConstraintRecord> directionResiduals;
-    vector<ConstraintRecord> allConstraints;
-    Intrinsics intrinsics(initial_intrinsics);
-    Extrinsics extrinsics{initial_extrinsics};
-    const double pointReprojectionOutlierThreshold = imageSize[0] / 100.0;
-    // A radius of 0.005 * focal_length corresponds to roughly 0.3 degrees of tilt
-    double principalPointCauchyRadius = intrinsics.fx() * 0.05;
-    cout << "imageSize: " << imageSize[0] << " " << imageSize[1] << "\n";
-    cout << "initial Extrinsics " << extrinsics << "\n";
-    cout << "initial Intrinsics " << intrinsics << "\n";
-    cout << "Huber Loss Threshold for points: " << pointReprojectionOutlierThreshold << "px\n";
-    cout << "Cauchy Radius for principal point prior : " << principalPointCauchyRadius << "px\n";
-    Problem problem;
-    if (points) {
-        const double pointCount = points[0];
-        cout << "pointCount: " << pointCount << "\n";
-        const double *data = points + 1;
-        for (int i = 0; i < pointCount; ++i) {
-            Point5D p = Point5D::fromArray(data + i * 5);
-            cout << "- point" << i << ": " << p << "\n";
-            auto pointRecord = ReprojectionError::add(problem, intrinsics, extrinsics, p,
-                                                      pointReprojectionOutlierThreshold);
-            pointResiduals.push_back(pointRecord);
-            allConstraints.push_back(pointRecord);
-            allConstraints.push_back(PositiveDepthConstraint::add(problem, intrinsics, extrinsics, p.get3d()));
-        }
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+char *get_config_layout() {
+    return getStructLayout(rProblem.options);
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+char *get_summary_layout() {
+    return getStructLayout(rProblem.summary);
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+char *get_InitialProblemParams_layout() {
+    const auto params = new InitialProblemParams;
+    return getStructLayout(*params);
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()"), clang::ownership_returns(malloc)]]
+char *get_summary_full_report() {
+    return strdup(rProblem.summary.FullReport().c_str());
+}
+
+void fix_intrinsics() {
+    rProblem.problem.SetParameterBlockConstant(rProblem.intrinsics.arr);
+}
+
+void release_intrinsics() {
+    rProblem.problem.SetParameterBlockVariable(rProblem.intrinsics.arr);
+}
+
+void solve() {
+    Solve(rProblem.options, &rProblem.problem, &rProblem.summary);
+}
+
+const double *get_extrinsics() {
+    return rProblem.extrinsics.arr;
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+const char *get_intrinsics_json() {
+    return strdup(rProblem.intrinsics.to_json().c_str());
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+const char *get_extrinsics_json() {
+    return strdup(rProblem.extrinsics.to_json().c_str());
+}
+
+/**
+ * @return a malloc'd C string the caller must free()
+ */
+[[nodiscard("caller free()")]]
+[[clang::ownership_returns(malloc)]]
+const char *get_camera_json() {
+    return strdup(rProblem.extrinsics.to_camera_json().c_str());
+}
+
+void reset_problem() {
+    rProblem.reset();
+}
+
+void prepare_intrinsics(InitialProblemParams *params) {
+    params->toReconstructionProblem(rProblem);
+}
+
+void prepare_extrinsics(const double initial_extrinsics[6]) {
+    rProblem.extrinsics = Extrinsics(initial_extrinsics);
+}
+
+ResidualBlockId add_point(double x, double y, double z, double u, double v) {
+    if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
+        std::cerr << "please call prepare_intrinsics() before adding constraints\n";
+        abort();
     }
-    if (directions) {
-        const double directionsCount = directions[0];
-        cout << "directionsCount: " << directionsCount << "\n";
-        double *currentDir = directions + 1;
-        for (int i = 0; i < directionsCount; ++i) {
-            std::array<double, 3> currentDirArray = {currentDir[0], currentDir[1], currentDir[2]};
-            cout << "direction" << i << ": " << currentDirArray << "\n";
-            const double observationCount = currentDir[3];
-            cout << "    observationCount: " << observationCount << "\n";
-            double *currentObs = currentDir + 4;
-            for (int j = 0; j < observationCount; ++j) {
-                std::array<double, 4> obs = {currentObs[0], currentObs[1], currentObs[2], currentObs[3]};
-                // Calculate pixel length of the observed segment
-                const double length = std::hypot(obs[2] - obs[0], obs[3] - obs[1]);
-                const double weight = std::sqrt(length / 1000.0);
-                cout << "    observation: " << obs << " length: " << length << " weight: " << weight << "\n";
-                auto directionRecord = DirectionConstraint::add(problem, intrinsics, extrinsics, obs,
-                                                                currentDirArray, weight,
-                                                                pointReprojectionOutlierThreshold);
-                directionResiduals.push_back(directionRecord);
-                allConstraints.push_back(directionRecord);
-                currentObs += 4;
-            }
-            currentDir = currentObs;
-        }
+    const Point5D p = Point5D(x, y, z, u, v);
+    auto pointRecord = ReprojectionError::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics, p,
+                                              rProblem.pointReprojectionOutlierThreshold);
+    auto record = PositiveDepthConstraint::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics, p.get3d());
+    rProblem.pointConstraints.push_back(pointRecord);
+    rProblem.pointConstraints.push_back(record);
+    return pointRecord.blockId;
+}
+
+ResidualBlockId add_point_reprojection_constraint(const double x, const double y, const double z, const double u,
+                                                  const double v) {
+    if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
+        std::cerr << "please call prepare_intrinsics() before adding constraints\n";
+        abort();
     }
+    const Point5D p = Point5D(x, y, z, u, v);
+    const auto pointRecord = ReprojectionError::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics, p,
+                                                    rProblem.pointReprojectionOutlierThreshold);
+    rProblem.pointConstraints.push_back(pointRecord);
+    return pointRecord.blockId;
+}
 
-    intrinsics.registerLimits(problem, imageSize);
-    allConstraints.push_back(AspectRatioPrior::add(problem, intrinsics, 10.0));
-    allConstraints.push_back(FocalPrior::add(problem, intrinsics, intrinsics.fx(), 10.0));
-    allConstraints.push_back(PrincipalPointPrior::add(problem, intrinsics, imageSize[0] / 2.0, imageSize[1] / 2.0,
-                                                      principalPointCauchyRadius));
-    allConstraints.push_back(DistortionPrior::add(problem, intrinsics));
+ResidualBlockId add_point_positive_depth_constraint(const double x, const double y, const double z) {
+    const auto record = PositiveDepthConstraint::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics,
+                                                     std::array{x, y, z});
+    rProblem.pointConstraints.push_back(record);
+    return record.blockId;
+}
 
-    Solver::Options options;
-    options.linear_solver_type = DENSE_NORMAL_CHOLESKY;
-    options.use_nonmonotonic_steps = true;
-    options.jacobi_scaling = true;
-    options.function_tolerance = 1e-8;
-    options.gradient_tolerance = 1e-12;
-    options.parameter_tolerance = 1e-10;
-    options.max_num_iterations = 200;
-
-    options.minimizer_progress_to_stdout = true;
-    options.logging_type = SILENT;
-
-    Solver::Summary summary;
-    cout << "Intrinsics right before solve: " << intrinsics << "\n";
-
-    // Stage 1: Optimize Extrinsics only
-    problem.SetParameterBlockConstant(intrinsics.arr);
-    Solve(options, &problem, &summary);
-    cout << "Stage 1 Solver Summary:\n" << summary.FullReport() << "\n";
-    if (summary.IsSolutionUsable()) {
-        // Stage 2: Optimize Intrinsics and Extrinsics together
-        problem.SetParameterBlockVariable(intrinsics.arr);
-        Solve(options, &problem, &summary);
-        cout << "Stage 2 Solver Summary:\n" << summary.FullReport() << "\n";
-
-        cout << "Intrinsics: " << intrinsics << "\n";
-        cout << "Extrinsics: " << extrinsics << "\n";
-        const double move_dist = std::hypot(intrinsics.cx() - imageSize[0] / 2.0, intrinsics.cy() - imageSize[1] / 2.0);
-        if (move_dist > imageSize[0] * 0.05) {
-            cout << "WARNING: Significant Principal Point shift detected (" << move_dist
-                    << "px). Image may be cropped or sensor is misaligned.\n";
-        }
-
-        cout << "--- Post-Solve Residual Analysis ---\n";
-
-        EvaluationMap residualEvaluationMap = evaluate_residuals(allConstraints, problem);
-        log_points_residuals(residualEvaluationMap, pointResiduals);
-        log_directions_residuals(residualEvaluationMap, directionResiduals);
-        analyse_covariance(allConstraints, intrinsics, extrinsics, problem, residualEvaluationMap);
+ResidualBlockId add_direction(const double dx, const double dy, const double dz, const double u1, const double v1,
+                              const double u2, const double v2, const double sigma) {
+    if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
+        std::cerr << "please call prepare_intrinsics() before adding constraints\n";
+        abort();
     }
+    std::array currentDirArray = {dx, dy, dz};
+    std::array obs = {u1, v1, u2, v2};
+    const auto directionRecord = DirectionConstraint::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics,
+                                                          obs,
+                                                          currentDirArray, sigma,
+                                                          rProblem.pointReprojectionOutlierThreshold);
+    rProblem.directionConstraints.push_back(directionRecord);
+    return directionRecord.blockId;
 }
 }
+

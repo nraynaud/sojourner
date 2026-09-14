@@ -1,6 +1,19 @@
+console.time('wasm init')
 import moduleCreator from './build/ceres_app.mjs'
 
 const Module = await moduleCreator()
+console.timeEnd('wasm init')
+
+const TYPE_TO_LLVM_TYPE = {
+  'int8': 'i8',
+  'int16': 'i16',
+  'int32': 'i8',
+  'unsigned int8': 'i8',
+  'unsigned int16': 'i16',
+  'unsigned int32': 'i32',
+  'float32': 'float',
+  'double64': 'double'
+}
 
 function angleAxisRotatePoint (angleAxis, pt) {
   const theta2 = angleAxis[0] * angleAxis[0] + angleAxis[1] * angleAxis[1] + angleAxis[2] * angleAxis[2]
@@ -22,17 +35,29 @@ function angleAxisRotatePoint (angleAxis, pt) {
       pt[1] * costheta + cross_pt_w[1] * sintheta + wy * dot_pt_w * (1.0 - costheta),
       pt[2] * costheta + cross_pt_w[2] * sintheta + wz * dot_pt_w * (1.0 - costheta)
     ]
-  } else {
+  }
+  else {
     return [pt[0], pt[1], pt[2]]
   }
 }
 
 function compute_initial_state (fixedPoints, imageSize, target_fov_deg = 60.0) {
   const count = fixedPoints.length
-  const initIntrinsics = [imageSize[0], imageSize[0], imageSize[0] / 2.0, imageSize[1] / 2.0, 0.0]
+  const initIntrinsics = {
+    imageSizeX: imageSize[0],
+    imageSizeY: imageSize[1],
+    initialFx: imageSize[0],
+    initialFy: imageSize[0],
+    initialCx: imageSize[0] / 2.0,
+    initialCy: imageSize[1] / 2.0,
+    initialK1: 0.0,
+    aspectRatioPriorScale: 1.0,
+    focalPriorScale: 1.0,
+    principalPointCauchyRadius: 1.0
+  }
   const initExtrinsics = [1.047, 0.01, 0.01, -200.0, 200.0, 4500]
 
-  if (count === 0) return { intrinsics: initIntrinsics, extrinsics: initExtrinsics }
+  if (count === 0) return {intrinsics: initIntrinsics, extrinsics: initExtrinsics}
 
   let cx = 0, cy = 0, cz = 0
   for (let i = 0; i < count; ++i) {
@@ -64,48 +89,104 @@ function compute_initial_state (fixedPoints, imageSize, target_fov_deg = 60.0) {
   initExtrinsics[4] = -rotated_centroid[1]
   initExtrinsics[5] = distance - rotated_centroid[2]
 
-  initIntrinsics[0] = f
-  initIntrinsics[1] = f
+  initIntrinsics.initialFx = f
+  initIntrinsics.initialFy = f
 
-  return { intrinsics: initIntrinsics, extrinsics: initExtrinsics }
+  return {intrinsics: initIntrinsics, extrinsics: initExtrinsics}
+}
+
+function runStr (fName) {
+  let func = Module[fName]
+  if (typeof func !== 'function') {
+    throw new Error(`Function ${fName} not found`)
+  }
+  const charPtr = func()
+  if (charPtr === 0) return ''
+  try {
+    return Module.UTF8ToString(charPtr)
+  } finally {
+    Module._free(charPtr)
+  }
+}
+
+function setLayoutValues (strLayout, valueObj) {
+  for (const [key, value] of Object.entries(valueObj)) {
+    const layout = strLayout.fields[key]
+    const type = TYPE_TO_LLVM_TYPE[layout.type + (layout.len * 8)]
+    let addr = strLayout.addr + layout.offset
+    console.log('setting', key, value, addr)
+    Module.setValue(addr, value, type)
+  }
 }
 
 export default function runCeres (imgSize, fixedPoints, directions) {
+  let optionLayout = JSON.parse(runStr('_get_config_layout'))
+  let summaryLayout = JSON.parse(runStr('_get_summary_layout'))
+  let initialIntrinsicsLayout = JSON.parse(runStr('_get_InitialProblemParams_layout'))
+  console.log('optionLayout', optionLayout)
+  console.log('summaryLayout', summaryLayout)
+  console.log('initialIntrinsicsLayout', initialIntrinsicsLayout)
   console.time('ceres')
+  const options = {}
+  options.linear_solver_type = optionLayout.fields.linear_solver_type.enumValues.DENSE_NORMAL_CHOLESKY
+  options.use_nonmonotonic_steps = true
+  options.jacobi_scaling = true
+  options.function_tolerance = 1e-8
+  options.gradient_tolerance = 1e-12
+  options.parameter_tolerance = 1e-10
+  options.max_num_iterations = 200
+  options.logging_type = optionLayout.fields.logging_type.enumValues.SILENT
+  setLayoutValues(optionLayout, options)
   const directionCount = Object.keys(directions).length
   const directionFloats = [directionCount]
-  for (const dir in directions) {
-    const direction = directions[dir]
-    directionFloats.push(...Object.values(JSON.parse(dir)))
-    directionFloats.push(direction.length)
-    for (const observation of direction) {
-      directionFloats.push(...Object.values(observation))
-    }
-  }
   console.log('directionFloats', directionFloats)
-  const pointsPtr = Module._malloc((1 + fixedPoints.length * 5) * 8)
-  const imgSizePtr = Module._malloc(2 * 8)
   const intrinsicsPtr = Module._malloc(5 * 8)
   const extrinsicsPtr = Module._malloc(6 * 8)
-  const directionsPtr = directionCount ? Module._malloc(directionFloats.length * 8) : 0
-  const pointsPtr64 = pointsPtr / 8
   console.log('fixedPoints.length', fixedPoints.length)
-  console.log('pointsPtr', pointsPtr.toString(16))
-  Module.HEAPF64[pointsPtr64] = fixedPoints.length
-  for (let i = 0; i < fixedPoints.length; i++) {
-    Module.HEAPF64.set(fixedPoints[i], (1 + pointsPtr / 8) + i * 5)
-  }
-  Module.HEAPF64.set(imgSize, imgSizePtr / 8)
-  const { intrinsics, extrinsics } = compute_initial_state(fixedPoints, imgSize)
-  Module.HEAPF64.set(intrinsics, intrinsicsPtr / 8)
+  const {intrinsics, extrinsics} = compute_initial_state(fixedPoints, imgSize)
+  console.log('intrinsics', intrinsics)
+  console.log('initialIntrinsicsLayout', initialIntrinsicsLayout)
+  setLayoutValues(initialIntrinsicsLayout, intrinsics)
+  Module._prepare_intrinsics(initialIntrinsicsLayout.addr)
   Module.HEAPF64.set(extrinsics, extrinsicsPtr / 8)
-  console.log('points[0]', Module.HEAPF64[pointsPtr64])
-  Module.HEAPF64.set(directionFloats, directionsPtr / 8)
-  Module._solve_camera(imgSizePtr, intrinsicsPtr, extrinsicsPtr, pointsPtr, directionsPtr)
-  Module._free(pointsPtr)
-  Module._free(imgSizePtr)
+  Module._prepare_extrinsics(extrinsicsPtr)
+  for (let i = 0; i < fixedPoints.length; i++) {
+    const id = Module._add_point_reprojection_constraint(...fixedPoints[i])
+    console.log('added point', fixedPoints[i])
+    const id2 = Module._add_point_positive_depth_constraint(...fixedPoints[i].slice(0, 3))
+  }
+  /*
+  for (const dir in directions) {
+    const direction = directions[dir]
+    console.log('JS adding direction', dir, direction)
+    for (const observation of direction) {
+      console.log('JS adding obs', observation)
+      let jsDir = Object.values(JSON.parse(dir))
+      Module._add_direction(...jsDir, ...Object.values(observation), 1.0)
+    }
+  }
+
+   */
   Module._free(intrinsicsPtr)
   Module._free(extrinsicsPtr)
-  if (directionsPtr) Module._free(directionsPtr)
+  Module._fix_intrinsics()
+  console.log('about to solve')
+  Module._solve()
+  console.log('report of extrinsics', runStr('_get_summary_full_report'))
+  const termination = Module.getValue(summaryLayout.addr + summaryLayout.fields.termination_type.offset, 'i32')
+  if (termination === summaryLayout.fields.termination_type.enumValues.CONVERGENCE) {
+    Module._release_intrinsics()
+    Module._solve()
+    console.log('report of full solve', runStr('_get_summary_full_report'))
+  }
+  const finalCost = Module.getValue(summaryLayout.addr + summaryLayout.fields.final_cost.offset, 'double')
+  const finalIntrinsicsStr = runStr('_get_intrinsics_json')
+  console.log('finalIntrinsicsStr', finalIntrinsicsStr)
+  let finalIntrinsics = JSON.parse(finalIntrinsicsStr)
+  console.log('finalIntrinsics', finalIntrinsics)
+  const camera = JSON.parse(runStr('_get_camera_json'))
+  console.log('camera', camera)
+
   console.timeEnd('ceres')
+  return {intrinsics: finalIntrinsics, camera, points: fixedPoints, finalCost}
 }

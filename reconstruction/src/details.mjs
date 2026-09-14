@@ -1,14 +1,16 @@
 
 export class DetailsPanel {
-  constructor (panel, content) {
+  constructor (panel, content, doc) {
     this.panel = panel
     this.content = content
+    this.doc = doc
     this.currentShape = null
   }
 
   setShape (shape) {
     this.currentShape = shape
     if (!shape || !shape.attributes || Object.keys(shape.attributes).length === 0) {
+      this.content.innerHTML = ''
       this.panel.style.display = 'none'
       return
     }
@@ -32,6 +34,7 @@ export class DetailsPanel {
       input.value = value
       input.addEventListener('change', () => {
         this.currentShape.attributes[key] = parseFloat(input.value)
+        this.doc.save()
       })
 
       row.appendChild(label)

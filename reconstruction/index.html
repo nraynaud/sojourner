@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SVG 2D Editor</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -26,6 +34,7 @@
     <button id="load-btn">Load (Zip)</button>
     <input type="file" id="load-input" accept=".zip" style="display: none;">
     <button id="canny-btn">Canny</button>
+    <button id="3d-btn">3D</button>
     <button id="solve-btn">Solve</button>
 </div>
 
@@ -83,6 +92,7 @@
                 </g>
             </g>
         </svg>
+        <div id="three-container" style="display: none; width: 100%; height: 100%;"></div>
     </div>
 </div>
 
@@ -102,6 +112,7 @@
     invokeLater,
     dispatchCustom,
   } from './src/util.mjs'
+  import { initThreeView, updateThreeView } from './src/three_view.mjs'
 
   class ActiveModeHolder extends EventTarget {
     activeMode = null
@@ -196,7 +207,7 @@
   console.log('Script loaded')
   const ui = new UIObject()
   let doc = new ReconstructionDocument(ui)
-  const detailsPanel = new DetailsPanel($('details-panel'), $('details-content'))
+  const detailsPanel = new DetailsPanel($('details-panel'), $('details-content'), doc)
   let $svg = $('svg-canvas')
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
@@ -261,6 +272,28 @@
     doc.toggleCanny()
   }
 
+  let lastReconstruction = null
+  let is3DMode = false
+
+  function toggle3D () {
+    is3DMode = !is3DMode
+    if (is3DMode) {
+      $('svg-canvas').style.display = 'none'
+      $('three-container').style.display = 'block'
+      if (!window.threeInitialized) {
+        initThreeView($('three-container'))
+        window.threeInitialized = true
+      }
+      if (lastReconstruction && doc.currentImage) {
+        const imageSizeObj = doc.getBackgroundSize()
+        updateThreeView(lastReconstruction, { url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h })
+      }
+    } else {
+      $('svg-canvas').style.display = 'block'
+      $('three-container').style.display = 'none'
+    }
+  }
+
   function solve () {
     const vertices = doc.entities.filter(e => e instanceof VertexShape)
     const collectedVertices = []
@@ -275,7 +308,12 @@
       byDirection[key] = byDirection[key].map(dir => dir.get2DAttributes())
     }
     console.log('byDirection', byDirection)
-    runCeres([8688, 5792], collectedVertices, byDirection)
+    const imageSizeObj = doc.getBackgroundSize()
+    const imageSize = [imageSizeObj.w, imageSizeObj.h]
+    lastReconstruction = runCeres(imageSize, collectedVertices, byDirection)
+    if (is3DMode) {
+      updateThreeView(lastReconstruction, { url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h })
+    }
   }
 
   const clickHandlers = {
@@ -297,6 +335,7 @@
     'save-btn': () => doc.saveToFile(),
     'load-btn': () => $('load-input').click(),
     'canny-btn': toggleCanny,
+    '3d-btn': toggle3D,
     'solve-btn': solve
   }
   for (const [id, handler] of Object.entries(clickHandlers)) {

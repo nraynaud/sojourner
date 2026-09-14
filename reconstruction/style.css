@@ -329,3 +329,23 @@ Define it on the <symbol>, not on the <use>.
 #rotate-handle-icon {
     transform-origin: bottom;
 }
+
+.view-helper-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 128px;
+  height: 128px;
+  z-index: 10;
+}
+
+#three-container canvas {
+  display: block;
+}
+
+.recon-cam-btn {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  cursor: pointer;
+}
