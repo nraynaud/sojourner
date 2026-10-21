@@ -1,62 +1,63 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { ViewHelper } from 'three/addons/helpers/ViewHelper.js'
+import { $, createNS, setAttributes } from './util.mjs'
 
 let scene, renderer, viewerCamera, controls, viewHelper, helperRenderer
 let reconstructionGroup = new THREE.Group()
 const clock = new THREE.Clock()
 let reconCameraRef = null
-let projectionSpriteMaterial = null
+let projectionPointsMaterial = null
 
-function getProjectionSpriteMaterial() {
-  if (!projectionSpriteMaterial) {
-    const canvas = document.createElement('canvas')
-    canvas.width = 64
-    canvas.height = 64
-    const ctx = canvas.getContext('2d')
-
-    let target = typeof document !== 'undefined' ? document.querySelector('.vertex-shape') : null
-    let temp = null
-    if (!target && typeof document !== 'undefined') {
-      const shapesGroup = document.getElementById('shapes-group')
-      if (shapesGroup) {
-        temp = document.createElementNS('http://www.w3.org/2000/svg', 'use')
-        temp.setAttribute('class', 'shape vertex-shape')
-        shapesGroup.appendChild(temp)
-        target = temp
+function getProjectionPointsMaterial () {
+  if (!projectionPointsMaterial) {
+    let texture = null
+    const newDoc = document.implementation.createDocument('http://www.w3.org/2000/svg', 'svg', null)
+    const newRoot = newDoc.documentElement
+    const icon = $('vertex-icon')
+    const viewBox = icon.getAttribute('viewBox')
+    setAttributes(newRoot, {xmlns: 'http://www.w3.org/2000/svg', viewBox, width: '64', height: '64'})
+    const svgStyle = createNS('style', newDoc)
+    let allRules = []
+    for (const sheet of document.styleSheets) {
+      allRules.push(...Array.from(sheet.cssRules).map(rule => rule.cssText))
+    }
+    svgStyle.textContent = allRules.join('\n')
+    newRoot.appendChild(svgStyle)
+    const newDefs = createNS('defs', newDoc)
+    newRoot.appendChild(newDefs)
+    const importedIcon = newDoc.importNode(icon, true)
+    newDefs.appendChild(importedIcon)
+    newRoot.insertAdjacentHTML('beforeend', '<g id="shapes-group"><use href="#vertex-icon" class="shape vertex-shape"/></g>')
+    const svgString = new XMLSerializer().serializeToString(newDoc)
+    const textureUrl = URL.createObjectURL(new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'}))
+    const textureLoader = new THREE.TextureLoader()
+    texture = textureLoader.load(
+      textureUrl,
+      () => {
+        URL.revokeObjectURL(textureUrl)
       }
-    }
-
-    const computed = (target && typeof window !== 'undefined') ? window.getComputedStyle(target) : null
-    const fillStyle = (computed && computed.fill && computed.fill !== 'none') ? computed.fill : 'rgba(0, 123, 255, 0.4)'
-    const strokeStyle = (computed && computed.stroke && computed.stroke !== 'none') ? computed.stroke : '#007bff'
-
-    if (temp) {
-      temp.remove()
-    }
-
-    ctx.beginPath()
-    ctx.arc(32, 32, 22, 0, Math.PI * 2)
-    ctx.fillStyle = fillStyle
-    ctx.fill()
-    ctx.lineWidth = 5
-    ctx.strokeStyle = strokeStyle
-    ctx.stroke()
-
-    const texture = new THREE.CanvasTexture(canvas)
-    projectionSpriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
+    )
+    texture.colorSpace = THREE.SRGBColorSpace
+    projectionPointsMaterial = new THREE.PointsMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      size: 10,
+      sizeAttenuation: false
+    })
   }
-  return projectionSpriteMaterial
+  return projectionPointsMaterial
 }
 
-export function initThreeView(container) {
+export function initThreeView (container) {
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x222222)
 
   viewerCamera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100000)
   viewerCamera.position.set(0, 0, 1000)
 
-  renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer = new THREE.WebGLRenderer({antialias: true})
   renderer.setSize(container.clientWidth, container.clientHeight)
   container.appendChild(renderer.domElement)
 
@@ -68,7 +69,7 @@ export function initThreeView(container) {
   helperContainer.className = 'view-helper-container'
   container.appendChild(helperContainer)
 
-  helperRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+  helperRenderer = new THREE.WebGLRenderer({alpha: true, antialias: true})
   helperRenderer.setSize(128, 128)
   helperContainer.appendChild(helperRenderer.domElement)
 
@@ -118,7 +119,7 @@ export function initThreeView(container) {
     }
   })
 
-  function animate() {
+  function animate () {
     requestAnimationFrame(animate)
     const delta = clock.getDelta()
     if (viewHelper.animating) {
@@ -128,13 +129,14 @@ export function initThreeView(container) {
     renderer.render(scene, viewerCamera)
     viewHelper.render(helperRenderer)
   }
+
   animate()
 }
 
-export function updateThreeView(reconstruction, image) {
+export function updateThreeView (reconstruction, image) {
   reconstructionGroup.clear()
 
-  const { intrinsics, camera, points } = reconstruction
+  const {intrinsics, camera, points} = reconstruction
 
   const width = image ? image.width : (intrinsics.cx * 2)
   const height = image ? image.height : (intrinsics.cy * 2)
@@ -189,6 +191,7 @@ export function updateThreeView(reconstruction, image) {
   }
   reconstructionGroup.add(reconCamera)
 
+  const projectionMaterial = getProjectionPointsMaterial()
   if (points) {
     const geometry = new THREE.BufferGeometry()
     const vertices = []
@@ -196,12 +199,11 @@ export function updateThreeView(reconstruction, image) {
       vertices.push(p[0], p[1], p[2])
     }
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    const material = new THREE.PointsMaterial({ color: 0xff0000, size: 50, sizeAttenuation: true })
-    const pointCloud = new THREE.Points(geometry, material)
+    const pointCloud = new THREE.Points(geometry, projectionMaterial)
     reconstructionGroup.add(pointCloud)
 
-    const spriteMaterial = getProjectionSpriteMaterial()
     const lineVertices = []
+    const projectionVertices = []
     for (const p of points) {
       const pWorld = new THREE.Vector3(p[0], p[1], p[2])
       const pLocal = pWorld.clone().applyMatrix4(reconCamera.matrixWorldInverse)
@@ -211,18 +213,24 @@ export function updateThreeView(reconstruction, image) {
         const pPlaneWorld = pPlaneLocal.applyMatrix4(reconCamera.matrixWorld)
         lineVertices.push(pWorld.x, pWorld.y, pWorld.z)
         lineVertices.push(pPlaneWorld.x, pPlaneWorld.y, pPlaneWorld.z)
-
-        const sprite = new THREE.Sprite(spriteMaterial)
-        sprite.position.copy(pPlaneWorld)
-        sprite.scale.set(20, 20, 1)
-        reconstructionGroup.add(sprite)
+        projectionVertices.push(pPlaneWorld.x, pPlaneWorld.y, pPlaneWorld.z)
       }
+    }
+
+    if (projectionVertices.length > 0) {
+      const projGeometry = new THREE.BufferGeometry()
+      projGeometry.setAttribute('position', new THREE.Float32BufferAttribute(projectionVertices, 3))
+      let projectedMaterial = projectionMaterial.clone()
+      projectedMaterial.opacity = 0.6
+      projectedMaterial.color.setHex(0x444444)
+      const projPoints = new THREE.Points(projGeometry, projectedMaterial)
+      reconstructionGroup.add(projPoints)
     }
 
     if (lineVertices.length > 0) {
       const lineGeometry = new THREE.BufferGeometry()
       lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3))
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 })
+      const lineMaterial = new THREE.LineBasicMaterial({color: 0xff0000, transparent: true, opacity: 0.6})
       const lines = new THREE.LineSegments(lineGeometry, lineMaterial)
       reconstructionGroup.add(lines)
     }
