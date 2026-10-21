@@ -1,6 +1,6 @@
 import * as shapes from './shapes.mjs'
 import Canny from './canny.mjs'
-import { $, createNS, setAttributes, dispatchCustom } from './util.mjs'
+import { $, createNS, setAttributes, dispatchCustom, invokeLater } from './util.mjs'
 
 // indexedDB
 const dbName = 'SvgEditorDB', dbStoreName = 'state'
@@ -318,7 +318,9 @@ export class ReconstructionDocument extends EventTarget {
   updateSelection (sel) {
     this.entityItemsMap.forEach((item, s) => {
       item.classList.toggle('selected', s === sel)
-      if (s === sel) item.scrollIntoView({behavior: 'smooth', block: 'nearest'})
+      if (s === sel)
+        // invokelater to give time to the sub-panel to appear before the scrolling
+        invokeLater(()=>item.scrollIntoView({behavior: 'smooth', block: 'nearest'}))
     })
     this.entities.forEach(s => {
       if (s.el) {

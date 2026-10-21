@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SVG 2D Editor</title>
     <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        {
+          "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+          }
         }
-      }
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -110,7 +110,6 @@
   import {
     $,
     invokeLater,
-    dispatchCustom,
   } from './src/util.mjs'
   import { initThreeView, updateThreeView } from './src/three_view.mjs'
 
@@ -130,11 +129,11 @@
       this.activeMode = new ModeClass(this.doc, this.$svg, this.$zoomGroup, arg)
       this.activeMode.addEventListener('modeTransition', e => {
         console.log('modeTransition', e)
+        // invoke later so that the mode transition is processed after the current event
         invokeLater(() => {this.setMode(e.detail.newMode, e.detail.arg)})
       }, {once: true})
-      if (this.activeMode) {
+      if (this.activeMode)
         this.activeMode.activate(this)
-      }
     }
 
     transitionToSelect (el) {
@@ -143,9 +142,9 @@
         if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
         if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
         if (el instanceof shapes.DirectionShape) ModeClass = modes.SelectionDirectionMode
-        dispatchCustom(this.activeMode, 'modeTransition', {newMode: ModeClass, arg: el})
+        this.activeMode.dispatchModeTransition(ModeClass, el)
       }
-      else dispatchCustom(this.activeMode, 'modeTransition', {newMode: modes.SelectionIdleMode})
+      else this.activeMode.dispatchModeTransition(modes.SelectionIdleMode, null)
     }
 
     handleDrop (id, pos) {
@@ -212,6 +211,9 @@
   let $zoomGroup = $('zoom-group')
   let $viewport = $('canvas-container')
   let activeMode = new ActiveModeHolder(doc, $svg, $zoomGroup)
+  globalThis.ui = ui
+  globalThis.doc = doc
+  globalThis.activeMode = activeMode
 
   doc.addEventListener('selectionChanged', e => {
     detailsPanel.setShape(e.detail.selected)
@@ -277,20 +279,25 @@
 
   function toggle3D () {
     is3DMode = !is3DMode
+    let $3d = $('3d-btn')
+    let $three = $('three-container')
     if (is3DMode) {
-      $('svg-canvas').style.display = 'none'
-      $('three-container').style.display = 'block'
+      $3d.innerText = '2D'
+      $svg.style.display = 'none'
+      $three.style.display = 'block'
       if (!window.threeInitialized) {
-        initThreeView($('three-container'))
+        initThreeView($three)
         window.threeInitialized = true
       }
       if (lastReconstruction && doc.currentImage) {
         const imageSizeObj = doc.getBackgroundSize()
-        updateThreeView(lastReconstruction, { url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h })
+        updateThreeView(lastReconstruction, {url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h})
       }
-    } else {
-      $('svg-canvas').style.display = 'block'
-      $('three-container').style.display = 'none'
+    }
+    else {
+      $3d.innerText = '3D'
+      $svg.style.display = 'block'
+      $three.style.display = 'none'
     }
   }
 
@@ -312,7 +319,7 @@
     const imageSize = [imageSizeObj.w, imageSizeObj.h]
     lastReconstruction = runCeres(imageSize, collectedVertices, byDirection)
     if (is3DMode) {
-      updateThreeView(lastReconstruction, { url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h })
+      updateThreeView(lastReconstruction, {url: doc.currentImage.url, width: imageSizeObj.w, height: imageSizeObj.h})
     }
   }
 

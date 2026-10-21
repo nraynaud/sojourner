@@ -60,6 +60,18 @@ class Mode extends EventTarget {
     this.svg.classList.remove(this.name)
     if (this.activationSelector) $(this.activationSelector).classList.toggle('active', false)
   }
+
+  /** this is checked before making a transition, used to remove transitions to the currently selected object*/
+  allowTransition (nextModeClass, nextModeArg) {
+    return true
+  }
+
+  /** The current mode dispatches the transition to the next mode so that it can refuse to do it*/
+  dispatchModeTransition (newModeClass, newModeArg) {
+    if (this.allowTransition(newModeClass, newModeArg)) {
+      dispatchCustom(this, 'modeTransition', {newMode: newModeClass, arg: newModeArg})
+    }
+  }
 }
 
 class BaseDrawingMode extends Mode {
@@ -92,7 +104,7 @@ class BaseDrawingMode extends Mode {
     let ModeClass = SelectionQuadrilateralMode
     if (el instanceof EllipseShape) ModeClass = SelectionEllipseMode
     if (el instanceof DirectionShape) ModeClass = SelectionDirectionMode
-    dispatchCustom(this, 'modeTransition', {newMode: ModeClass, arg: el})
+    this.dispatchModeTransition(ModeClass, el)
   }
 }
 
@@ -177,7 +189,7 @@ export class DrawVertexMode extends Mode {
       const newElement = new VertexShape(`entity-${shapeId}`, getMousePos(e, this.$zoomGroup), shapeId)
       this.doc.addShape(newElement)
       this.doc.saveShapeGeometry(newElement)
-      dispatchCustom(this, 'modeTransition', {newMode: SelectionVertexMode, arg: newElement})
+      this.dispatchModeTransition(SelectionVertexMode, newElement)
     })
   }
 
@@ -223,6 +235,11 @@ export class SelectionIdleMode extends Mode {
 
   getDefaultActions () {
     return 'Click a shape to select it, or drag entities from the panel.'
+  }
+
+  allowTransition (nextModeClass, nextModeArg) {
+    // refuse to change from idle to idle
+    return nextModeClass !== SelectionIdleMode
   }
 }
 
@@ -342,6 +359,10 @@ export class SelectionQuadrilateralMode extends Mode {
   updateHandles () {
     this.selectedElement.updateHandles(this.handles, this)
   }
+  allowTransition (nextModeClass, nextModeArg) {
+    // refuse to change to the same selected quadrilateral
+    return nextModeClass !== SelectionQuadrilateralMode || nextModeArg !== this.selectedElement
+  }
 }
 
 export class SelectionDirectionMode extends SelectionQuadrilateralMode {
@@ -351,6 +372,10 @@ export class SelectionDirectionMode extends SelectionQuadrilateralMode {
 
   getDefaultActions () {
     return 'Drag handles to move endpoints. Press Del or Backspace to delete.'
+  }
+  allowTransition (nextModeClass, nextModeArg) {
+    // refuse to change to the same selected ellipse
+    return nextModeClass !== SelectionDirectionMode || nextModeArg !== this.selectedElement
   }
 }
 
@@ -585,6 +610,11 @@ export class SelectionEllipseMode extends Mode {
     hg.style.rotate = `${rot}deg`
     s.updateHandles(hg, {ellipseHandleAngles: this.ellipseHandleAngles})
   }
+
+  allowTransition (nextModeClass, nextModeArg) {
+    // refuse to change to the same selected ellipse
+    return nextModeClass !== SelectionEllipseMode || nextModeArg !== this.selectedElement
+  }
 }
 
 export class SelectionVertexMode extends Mode {
@@ -639,7 +669,8 @@ export class SelectionVertexMode extends Mode {
       if (shapeEl) {
         if (shapeEl.id === s.id) {
           this.updateStatus('Drag to move vertex.')
-        } else {
+        }
+        else {
           const shape = this.doc.entities.find(s => s.id === shapeEl.id)
           this.updateStatus(`Click to select ${shape ? shape.name : shapeEl.id}.`)
         }
@@ -659,6 +690,11 @@ export class SelectionVertexMode extends Mode {
     this.doc.updateSelection(null)
     this.selectedElement.el.style.cursor = ''
     super.deactivate()
+  }
+
+  allowTransition (nextModeClass, nextModeArg) {
+    // refuse to change to the same selected vertex
+    return nextModeClass !== SelectionVertexMode || nextModeArg !== this.selectedElement
   }
 }
 
