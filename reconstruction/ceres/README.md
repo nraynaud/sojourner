@@ -19,3 +19,7 @@ I personally use the command:
 I personally use the command:
 `cmake --build build -j`
 
+## Testing the C++
+`cmake --build build --target test`
+
+This tests the wasm code.
