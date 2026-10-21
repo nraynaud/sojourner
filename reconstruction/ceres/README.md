@@ -12,7 +12,7 @@ You need to install [emscripten](https://emscripten.org/docs/getting_started/dow
 ## Configure the Cmake build
 
 I personally use the command:
-`/usr/local/Cellar/emscripten/6.0.9/bin/emcmake cmake -S . -B build -Wno-author`
+`/usr/local/Cellar/emscripten/6.0.12/bin/emcmake cmake -S . -B build -Wno-author`
 
 ## Build the project
 

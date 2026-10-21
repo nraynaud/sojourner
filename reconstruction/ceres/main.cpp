@@ -1,5 +1,5 @@
 #include "reconstruction.h"
-
+#include <emscripten.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
@@ -9,97 +9,84 @@ static ReconstructionProblem rProblem;
 #pragma clang diagnostic pop
 
 extern "C" {
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 char *get_config_layout() {
     return getStructLayout(rProblem.options);
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 char *get_summary_layout() {
     return getStructLayout(rProblem.summary);
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 char *get_InitialProblemParams_layout() {
     const auto params = new InitialProblemParams;
     return getStructLayout(*params);
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()"), clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 char *get_summary_full_report() {
     return strdup(rProblem.summary.FullReport().c_str());
 }
 
+[[gnu::used]]
 void fix_intrinsics() {
     rProblem.problem.SetParameterBlockConstant(rProblem.intrinsics.arr);
 }
 
+[[gnu::used]]
 void release_intrinsics() {
     rProblem.problem.SetParameterBlockVariable(rProblem.intrinsics.arr);
 }
 
+[[gnu::used]]
 void solve() {
     Solve(rProblem.options, &rProblem.problem, &rProblem.summary);
 }
 
+[[gnu::used]]
 const double *get_extrinsics() {
     return rProblem.extrinsics.arr;
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 const char *get_intrinsics_json() {
     return strdup(rProblem.intrinsics.to_json().c_str());
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 const char *get_extrinsics_json() {
     return strdup(rProblem.extrinsics.to_json().c_str());
 }
 
-/**
- * @return a malloc'd C string the caller must free()
- */
-[[nodiscard("caller free()")]]
-[[clang::ownership_returns(malloc)]]
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
 const char *get_camera_json() {
     return strdup(rProblem.extrinsics.to_camera_json().c_str());
 }
 
+[[nodiscard("caller free()"), clang::ownership_returns(malloc), gnu::used]]
+const char *get_points_residuals_json() {
+    EvaluationMap evalMap = evaluate_residuals(rProblem.pointConstraints, rProblem.problem);
+    return strdup(get_points_residuals_json(evalMap, rProblem.pointConstraints).c_str());
+}
+
+[[gnu::used]]
 void reset_problem() {
     rProblem.reset();
 }
 
+[[gnu::used]]
 void prepare_intrinsics(InitialProblemParams *params) {
     params->toReconstructionProblem(rProblem);
 }
 
+[[gnu::used]]
 void prepare_extrinsics(const double initial_extrinsics[6]) {
     rProblem.extrinsics = Extrinsics(initial_extrinsics);
 }
 
+[[gnu::used]]
 ResidualBlockId add_point(double x, double y, double z, double u, double v) {
     if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
         std::cerr << "please call prepare_intrinsics() before adding constraints\n";
@@ -114,6 +101,7 @@ ResidualBlockId add_point(double x, double y, double z, double u, double v) {
     return pointRecord.blockId;
 }
 
+[[gnu::used]]
 ResidualBlockId add_point_reprojection_constraint(const double x, const double y, const double z, const double u,
                                                   const double v) {
     if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
@@ -127,6 +115,7 @@ ResidualBlockId add_point_reprojection_constraint(const double x, const double y
     return pointRecord.blockId;
 }
 
+[[gnu::used]]
 ResidualBlockId add_point_positive_depth_constraint(const double x, const double y, const double z) {
     const auto record = PositiveDepthConstraint::add(rProblem.problem, rProblem.intrinsics, rProblem.extrinsics,
                                                      std::array{x, y, z});
@@ -134,6 +123,7 @@ ResidualBlockId add_point_positive_depth_constraint(const double x, const double
     return record.blockId;
 }
 
+[[gnu::used]]
 ResidualBlockId add_direction(const double dx, const double dy, const double dz, const double u1, const double v1,
                               const double u2, const double v2, const double sigma) {
     if (isnan(rProblem.pointReprojectionOutlierThreshold)) {
@@ -150,4 +140,3 @@ ResidualBlockId add_direction(const double dx, const double dy, const double dz,
     return directionRecord.blockId;
 }
 }
-

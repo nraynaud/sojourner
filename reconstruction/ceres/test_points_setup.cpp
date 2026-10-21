@@ -152,7 +152,7 @@ namespace {
         // Evaluate residuals
         EvaluationMap evalMap = evaluate_residuals(allConstraints, recProblem.problem);
         std::cout << "\n--- Point Residuals Evaluation ---\n";
-        log_points_residuals(evalMap, pointConstraints);
+        std::cout << get_points_residuals_json(evalMap, pointConstraints) << "\n";
 
         // Verify solver converged and final cost is small
         const bool converged = (recProblem.summary.termination_type == ceres::CONVERGENCE);
@@ -244,7 +244,7 @@ namespace {
         // Residuals and covariance analysis
         EvaluationMap evalMap = evaluate_residuals(allConstraints, recProblem.problem);
         std::cout << "\n--- Residuals Summary ---\n";
-        log_points_residuals(evalMap, pointConstraints);
+        std::cout << get_points_residuals_json(evalMap, pointConstraints) << "\n";
 
         analyse_covariance(allConstraints, recProblem.intrinsics, recProblem.extrinsics, recProblem.problem, evalMap);
 

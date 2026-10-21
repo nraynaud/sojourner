@@ -169,7 +169,8 @@ struct DirectionConstraint : CompleteConstraint<1, DirectionConstraint> {
 
 using EvaluationMap = std::unordered_map<ceres::ResidualBlockId, ResidualEvaluationRecord>;
 
-inline EvaluationMap evaluate_residuals(const std::vector<ConstraintRecord> &allConstraints, const ceres::Problem &problem) {
+inline EvaluationMap evaluate_residuals(const std::vector<ConstraintRecord> &allConstraints,
+                                        const ceres::Problem &problem) {
     EvaluationMap residualEvaluationMap;
     residualEvaluationMap.reserve(allConstraints.size());
     for (const auto &constraint: allConstraints) {
@@ -214,21 +215,48 @@ inline EvaluationMap evaluate_residuals(const std::vector<ConstraintRecord> &all
     return residualEvaluationMap;
 }
 
-inline void log_points_residuals(const EvaluationMap &residualMap, const std::vector<ConstraintRecord> &pointResiduals) {
+inline std::string escape_json(const std::string &s) {
+    std::ostringstream o;
+    for (char c: s) {
+        if (c == '"') o << "\\\"";
+        else if (c == '\\') o << "\\\\";
+        else if (c == '\n') o << "\\n";
+        else if (c == '\r') o << "\\r";
+        else if (c == '\t') o << "\\t";
+        else o << c;
+    }
+    return o.str();
+}
+
+inline std::string get_points_residuals_json(const EvaluationMap &residualMap,
+                                        const std::vector<ConstraintRecord> &pointResiduals) {
+    std::ostringstream ss;
+    ss << "[";
+    bool first = true;
     for (const auto &record: pointResiduals) {
         const auto residualIt = residualMap.find(record.blockId);
         if (residualIt == residualMap.end() || residualIt->second.residualSize < 2) {
             continue;
         }
         const auto &data = residualIt->second;
-        std::cout << record.label << "\n";
-        std::cout << "    Params: " << record.parameters << "\n";
-        std::cout << "    Lossy Residual (px): " << std::sqrt(data.costLoss * 2) << " [du: " << data.residualsLoss[0] <<
-                ", dv: " << data.residualsLoss[1] << "] Cost: " << data.costLoss << "\n";
+        if (!first) ss << ", ";
+        first = false;
+        ss << "{"
+                << R"("label": ")" << escape_json(record.label) << "\", "
+                << R"("parameters": ")" << escape_json(record.parameters) << "\", "
+                << "\"lossyResidual\": " << std::sqrt(data.costLoss * 2) << ", "
+                << "\"du\": " << data.residualsLoss[0] << ", "
+                << "\"dv\": " << data.residualsLoss[1] << ", "
+                << "\"cost\": " << data.costLoss
+                << "}";
     }
+    ss << "]";
+
+    return ss.str();
 }
 
-inline void log_directions_residuals(const EvaluationMap &residualMap, const std::vector<ConstraintRecord> &directionResiduals) {
+inline void log_directions_residuals(const EvaluationMap &residualMap,
+                                     const std::vector<ConstraintRecord> &directionResiduals) {
     for (const auto &record: directionResiduals) {
         const auto residualIt = residualMap.find(record.blockId);
         if (residualIt == residualMap.end() || residualIt->second.residualSize < 1) {
@@ -245,12 +273,13 @@ inline void log_directions_residuals(const EvaluationMap &residualMap, const std
 }
 
 inline void analyse_covariance(std::vector<ConstraintRecord> &allConstraints, Intrinsics<double> &intrinsics,
-                              Extrinsics<double> &extrinsics, ceres::Problem &problem, EvaluationMap &residualEvaluationMap) {
+                               Extrinsics<double> &extrinsics, ceres::Problem &problem,
+                               EvaluationMap &residualEvaluationMap) {
     ceres::Covariance::Options covarianceOptions;
     covarianceOptions.algorithm_type = ceres::DENSE_SVD;
     covarianceOptions.apply_loss_function = false;
     ceres::Covariance covariance(covarianceOptions);
-    const std::vector<std::pair<const double *, const double *>> covarianceBlocks = {
+    const std::vector<std::pair<const double *, const double *> > covarianceBlocks = {
         {intrinsics.arr, intrinsics.arr},
         {extrinsics.arr, extrinsics.arr},
         {intrinsics.arr, extrinsics.arr}
@@ -485,7 +514,7 @@ struct InitialProblemParams {
     }
 };
 
-inline std::pair<InitialProblemParams, std::array<double, 6>> compute_initial_state(
+inline std::pair<InitialProblemParams, std::array<double, 6> > compute_initial_state(
     const std::vector<Point5D> &fixedPoints,
     const double imageSize[2],
     const double target_fov_deg = 60.0) {
@@ -506,7 +535,7 @@ inline std::pair<InitialProblemParams, std::array<double, 6>> compute_initial_st
     if (count == 0) return {initIntrinsics, initExtrinsics};
 
     double cx = 0, cy = 0, cz = 0;
-    for (const auto &p : fixedPoints) {
+    for (const auto &p: fixedPoints) {
         cx += p.X;
         cy += p.Y;
         cz += p.Z;
@@ -516,7 +545,7 @@ inline std::pair<InitialProblemParams, std::array<double, 6>> compute_initial_st
     cz /= static_cast<double>(count);
 
     double max_r_sq = 0;
-    for (const auto &p : fixedPoints) {
+    for (const auto &p: fixedPoints) {
         const double dx = p.X - cx;
         const double dy = p.Y - cy;
         const double dz = p.Z - cz;

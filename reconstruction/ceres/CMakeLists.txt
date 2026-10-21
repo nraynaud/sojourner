@@ -12,7 +12,6 @@ include(CTest)
 option(SIMPLEGCOV "Use a minimal coverage." OFF)
 
 # flags that have to be the same everywhere for precompiled headers to work
-#set(CMAKE_CXX_FLAGS "-mmutable-globals -fno-exceptions -msse2 -msimd128 -mrelaxed-simd -fassociative-math -freciprocal-math -fno-math-errno -fno-trapping-math")
 set(CMAKE_CXX_FLAGS "-mmutable-globals -mmultivalue -mextended-const -mnontrapping-fptoint -mtail-call -mbulk-memory -mbulk-memory-opt -fno-exceptions -msimd128 -msse2 -mrelaxed-simd -Wglobal-constructors -Wexit-time-destructors")
 set(CMAKE_CXX_FLAGS_RELEASE "-flto -O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-gsource-map -g3 -O0")
@@ -119,8 +118,9 @@ target_compile_options(ceres_app PRIVATE -Wall -Wextra -Wconversion -Wdouble-pro
 target_precompile_headers(ceres_app PRIVATE <ceres/ceres.h> <ceres/covariance.h> <ceres/rotation.h> <boost/pfr/core_name.hpp> "vendor/enchantum_single_header.hpp")
 target_link_options(ceres_app PRIVATE
         "SHELL:--no-entry -sMODULARIZE=1 -sEXPORT_ES6=1 -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sENVIRONMENT=web,worker,node"
-        "SHELL:-sEXPORTED_FUNCTIONS=_reset_problem,_get_intrinsics_json,_get_extrinsics_json,_get_camera_json,_prepare_extrinsics,_add_point_reprojection_constraint,_add_point_positive_depth_constraint,_add_point,_add_direction,_solve,_fix_intrinsics,_release_intrinsics,_prepare_intrinsics,_get_config_layout,_get_summary_layout,_get_InitialProblemParams_layout,_get_summary_full_report,_malloc,_free,_emscripten_force_exit"
+        "SHELL:-sEXPORTED_FUNCTIONS=_malloc,_free,_emscripten_force_exit"
         "SHELL:-sEXPORTED_RUNTIME_METHODS=getValue,setValue,ccall,UTF8ToString,HEAPF64 -Xclang -fdump-record-layouts"
+        "SHELL:--emit-tsd ceres_app.d.ts"
         "SHELL:$<$<CONFIG:DEBUG>:-g3>"
 )
 
@@ -149,7 +149,7 @@ if (SIMPLEGCOV)
     target_compile_definitions(ceres_app PRIVATE SIMPLEGCOV=1)
 else ()
     target_link_options(ceres_app PRIVATE
-            "SHELL: -sFILESYSTEM=0 -sEVAL_CTORS=2  -sINVOKE_RUN=0 --ignore-dynamic-linking"
+            "SHELL:-sFILESYSTEM=0 -sEVAL_CTORS=2  -sINVOKE_RUN=0 --ignore-dynamic-linking"
             "SHELL:-sALLOW_UNIMPLEMENTED_SYSCALLS=0 -sSTRICT=1 -sDYNAMIC_EXECUTION=0"
             "SHELL:-sTEXTDECODER=2 -sSUPPORT_LONGJMP=0")
 endif ()

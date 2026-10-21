@@ -109,6 +109,10 @@ function runStr (fName) {
   }
 }
 
+function runJson (fName) {
+  return JSON.parse(runStr(fName))
+}
+
 function setLayoutValues (strLayout, valueObj) {
   for (const [key, value] of Object.entries(valueObj)) {
     const layout = strLayout.fields[key]
@@ -120,9 +124,9 @@ function setLayoutValues (strLayout, valueObj) {
 }
 
 export default function runCeres (imgSize, fixedPoints, directions) {
-  let optionLayout = JSON.parse(runStr('_get_config_layout'))
-  let summaryLayout = JSON.parse(runStr('_get_summary_layout'))
-  let initialIntrinsicsLayout = JSON.parse(runStr('_get_InitialProblemParams_layout'))
+  let optionLayout = runJson('_get_config_layout')
+  let summaryLayout = runJson('_get_summary_layout')
+  let initialIntrinsicsLayout = runJson('_get_InitialProblemParams_layout')
   console.log('optionLayout', optionLayout)
   console.log('summaryLayout', summaryLayout)
   console.log('initialIntrinsicsLayout', initialIntrinsicsLayout)
@@ -155,7 +159,7 @@ export default function runCeres (imgSize, fixedPoints, directions) {
     console.log('added point', fixedPoints[i])
     const id2 = Module._add_point_positive_depth_constraint(...fixedPoints[i].slice(0, 3))
   }
-  /*
+
   for (const dir in directions) {
     const direction = directions[dir]
     console.log('JS adding direction', dir, direction)
@@ -166,7 +170,7 @@ export default function runCeres (imgSize, fixedPoints, directions) {
     }
   }
 
-   */
+
   Module._free(intrinsicsPtr)
   Module._free(extrinsicsPtr)
   Module._fix_intrinsics()
@@ -180,13 +184,11 @@ export default function runCeres (imgSize, fixedPoints, directions) {
     console.log('report of full solve', runStr('_get_summary_full_report'))
   }
   const finalCost = Module.getValue(summaryLayout.addr + summaryLayout.fields.final_cost.offset, 'double')
-  const finalIntrinsicsStr = runStr('_get_intrinsics_json')
-  console.log('finalIntrinsicsStr', finalIntrinsicsStr)
-  let finalIntrinsics = JSON.parse(finalIntrinsicsStr)
+  let finalIntrinsics = runJson('_get_intrinsics_json')
   console.log('finalIntrinsics', finalIntrinsics)
-  const camera = JSON.parse(runStr('_get_camera_json'))
+  const camera = runJson('_get_camera_json')
   console.log('camera', camera)
-
+  console.log('get_points_residuals_json', runJson('_get_points_residuals_json'))
   console.timeEnd('ceres')
   return {intrinsics: finalIntrinsics, camera, points: fixedPoints, finalCost}
 }
