@@ -39,10 +39,10 @@ async function addImageToTest (container, imageData, label) {
 }
 
 QUnit.assert.imagesTest = async function (images, captions, message, result = true) {
-  const assertionList = document.getElementById('qunit-playwright-test-output-' + QUnit.config.current.testId)
+  const assertionList = document.getElementById('qunit-test-output-' + QUnit.config.current.testId)
     .querySelector('.qunit-assert-list')
   const imageContainer = document.createElement('div')
-  imageContainer.className = 'playwright-test-images'
+  imageContainer.className = 'test-images'
   imageContainer.style.display = 'flex'
   imageContainer.style.marginTop = '10px'
   imageContainer.style.gap = '10px'

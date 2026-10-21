@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('Canny QUnit playwright-test', async ({ page }) => {
-  await page.goto('/qunit-test/tests.html');
+  await page.goto('/tests.html');
 
   // Wait for QUnit to finish
   const qunitResults = page.locator('#qunit-testresult');
