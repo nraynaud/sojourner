@@ -6,6 +6,48 @@ let scene, renderer, viewerCamera, controls, viewHelper, helperRenderer
 let reconstructionGroup = new THREE.Group()
 const clock = new THREE.Clock()
 let reconCameraRef = null
+let projectionSpriteMaterial = null
+
+function getProjectionSpriteMaterial() {
+  if (!projectionSpriteMaterial) {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    const ctx = canvas.getContext('2d')
+
+    let target = typeof document !== 'undefined' ? document.querySelector('.vertex-shape') : null
+    let temp = null
+    if (!target && typeof document !== 'undefined') {
+      const shapesGroup = document.getElementById('shapes-group')
+      if (shapesGroup) {
+        temp = document.createElementNS('http://www.w3.org/2000/svg', 'use')
+        temp.setAttribute('class', 'shape vertex-shape')
+        shapesGroup.appendChild(temp)
+        target = temp
+      }
+    }
+
+    const computed = (target && typeof window !== 'undefined') ? window.getComputedStyle(target) : null
+    const fillStyle = (computed && computed.fill && computed.fill !== 'none') ? computed.fill : 'rgba(0, 123, 255, 0.4)'
+    const strokeStyle = (computed && computed.stroke && computed.stroke !== 'none') ? computed.stroke : '#007bff'
+
+    if (temp) {
+      temp.remove()
+    }
+
+    ctx.beginPath()
+    ctx.arc(32, 32, 22, 0, Math.PI * 2)
+    ctx.fillStyle = fillStyle
+    ctx.fill()
+    ctx.lineWidth = 5
+    ctx.strokeStyle = strokeStyle
+    ctx.stroke()
+
+    const texture = new THREE.CanvasTexture(canvas)
+    projectionSpriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
+  }
+  return projectionSpriteMaterial
+}
 
 export function initThreeView(container) {
   scene = new THREE.Scene()
@@ -105,18 +147,26 @@ export function updateThreeView(reconstruction, image) {
   reconCamera.up.set(camera.up[0], camera.up[1], camera.up[2])
   reconCamera.lookAt(camera.lookAt[0], camera.lookAt[1], camera.lookAt[2])
   reconCamera.updateMatrixWorld()
-
+  reconCamera.projectionMatrix.makePerspective(
+    -intrinsics.cx * (reconCamera.near / intrinsics.fx),
+    (width - intrinsics.cx) * (reconCamera.near / intrinsics.fx),
+    (height - intrinsics.cy) * (reconCamera.near / intrinsics.fy),
+    -intrinsics.cy * (reconCamera.near / intrinsics.fy),
+    reconCamera.near,
+    reconCamera.far
+  )
   reconCameraRef = reconCamera
 
   const helper = new THREE.CameraHelper(reconCamera)
   reconstructionGroup.add(helper)
 
+  const D = 1000
+
   if (image && image.url) {
     const textureLoader = new THREE.TextureLoader()
     textureLoader.load(image.url, (texture) => {
-      const D = 1000
-      const planeHeight = 2 * D * Math.tan(THREE.MathUtils.degToRad(fov / 2))
-      const planeWidth = planeHeight * aspect
+      const planeWidth = (width / intrinsics.fx) * D
+      const planeHeight = (height / intrinsics.fy) * D
 
       const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight)
       const material = new THREE.MeshBasicMaterial({
@@ -135,11 +185,9 @@ export function updateThreeView(reconstruction, image) {
 
       plane.position.set(dx, dy, -D)
       reconCamera.add(plane)
-      reconstructionGroup.add(reconCamera)
     })
-  } else {
-    reconstructionGroup.add(reconCamera)
   }
+  reconstructionGroup.add(reconCamera)
 
   if (points) {
     const geometry = new THREE.BufferGeometry()
@@ -151,6 +199,33 @@ export function updateThreeView(reconstruction, image) {
     const material = new THREE.PointsMaterial({ color: 0xff0000, size: 50, sizeAttenuation: true })
     const pointCloud = new THREE.Points(geometry, material)
     reconstructionGroup.add(pointCloud)
+
+    const spriteMaterial = getProjectionSpriteMaterial()
+    const lineVertices = []
+    for (const p of points) {
+      const pWorld = new THREE.Vector3(p[0], p[1], p[2])
+      const pLocal = pWorld.clone().applyMatrix4(reconCamera.matrixWorldInverse)
+      if (pLocal.z < -1e-6) {
+        const scale = -D / pLocal.z
+        const pPlaneLocal = new THREE.Vector3(pLocal.x * scale, pLocal.y * scale, -D)
+        const pPlaneWorld = pPlaneLocal.applyMatrix4(reconCamera.matrixWorld)
+        lineVertices.push(pWorld.x, pWorld.y, pWorld.z)
+        lineVertices.push(pPlaneWorld.x, pPlaneWorld.y, pPlaneWorld.z)
+
+        const sprite = new THREE.Sprite(spriteMaterial)
+        sprite.position.copy(pPlaneWorld)
+        sprite.scale.set(20, 20, 1)
+        reconstructionGroup.add(sprite)
+      }
+    }
+
+    if (lineVertices.length > 0) {
+      const lineGeometry = new THREE.BufferGeometry()
+      lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lineVertices, 3))
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 })
+      const lines = new THREE.LineSegments(lineGeometry, lineMaterial)
+      reconstructionGroup.add(lines)
+    }
   }
 
   viewerCamera.position.copy(reconCamera.position).add(new THREE.Vector3(0, 500, 1000))
