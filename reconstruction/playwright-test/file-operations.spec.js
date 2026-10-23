@@ -19,7 +19,7 @@ test.describe('File operations', () => {
 
   test('Save (Zip) functionality', async ({page}) => {
     // Draw a shape so the zip has content
-    await page.click('#rect-btn')
+    await page.click('#direction-btn')
     const canvas = page.locator('#svg-canvas')
     const box = await canvas.boundingBox()
     await page.mouse.move(box.x + 50, box.y + 50)
@@ -57,20 +57,37 @@ test.describe('File operations', () => {
       const docData = {
         entities: [
           {
-            type: 'quad',
-            id: 'Rect1',
-            name: 'Loaded Rect',
+            type: 'vertex',
+            id: 'vertex-1',
+            name: 'Loaded Vertex',
             geometries: {
               'img-1': {
-                points: [
-                  {x: 10, y: 10}, {x: 110, y: 10},
-                  {x: 110, y: 60}, {x: 10, y: 60}
-                ]
+                attributes: {
+                  x: 100,
+                  y: 150
+                }
               }
-            }
+            },
+            attributes: {x: 0, y: 0, z: 0}
+          },
+          {
+            type: 'direction',
+            id: 'direction-1',
+            name: 'Loaded Direction',
+            geometries: {
+              'img-1': {
+                attributes: {
+                  x1: 10,
+                  y1: 20,
+                  x2: 110,
+                  y2: 120
+                }
+              }
+            },
+            attributes: {vx: 0, vy: 0, vz: 1}
           }
         ],
-        entityCount: 1,
+        entityCount: 2,
         images: [
           {
             id: 'img-1',
@@ -105,14 +122,24 @@ test.describe('File operations', () => {
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tempZipPath)
 
-    // Verify it loaded
+    // Verify shapes loaded
     const shapesGroup = page.locator('#shapes-group')
-    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
-    await expect(shapesGroup.locator('polygon')).toHaveAttribute('points', /10,10/)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    const vertex = shapesGroup.locator('use[href="#vertex-icon"]')
+    await expect(vertex).toHaveAttribute('data-x', '100')
+    await expect(vertex).toHaveAttribute('data-y', '150')
+
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(1)
+    const direction = shapesGroup.locator('line.direction-shape')
+    await expect(direction).toHaveAttribute('x1', '10')
+    await expect(direction).toHaveAttribute('y1', '20')
+    await expect(direction).toHaveAttribute('x2', '110')
+    await expect(direction).toHaveAttribute('y2', '120')
 
     const entityList = page.locator('#entity-list')
-    await expect(entityList.locator('.entity-item')).toHaveCount(1)
-    await expect(entityList.locator('.entity-item', { hasText: 'Loaded Rect' })).toBeVisible()
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
+    await expect(entityList.locator('.entity-item', { hasText: 'Loaded Vertex' })).toBeVisible()
+    await expect(entityList.locator('.entity-item', { hasText: 'Loaded Direction' })).toBeVisible()
 
     const imageList = page.locator('#image-list')
     await expect(imageList.locator('.entity-item')).toHaveCount(1)

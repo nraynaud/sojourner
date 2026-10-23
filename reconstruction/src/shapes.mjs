@@ -1,4 +1,7 @@
+import * as modes from './modes.mjs'
 import { createNS, mapObject, setAttributes } from './util.mjs'
+
+export const SHAPE_INSTALLERS = []
 
 export class Shape {
   constructor (el) {
@@ -55,193 +58,6 @@ export class Shape {
   }
 
   toJSON () {throw 'toJSON must be implemented'}
-}
-
-export class QuadrilateralShape extends Shape {
-  constructor (id, start, label) {
-    const el = createNS('polygon')
-    const x = start ? start.x : 0, y = start ? start.y : 0
-    setAttributes(el, {
-      id,
-      points: `${x},${y} ${x},${y} ${x},${y} ${x},${y}`,
-      'data-name': `Quadrilateral ${label}`,
-      class: 'shape'
-    })
-    super(el)
-  }
-
-  applyGeometry (geometry) {
-    this.setPoints(geometry.points)
-  }
-
-  recordGeometry (imageId) {
-    this.geometries[imageId] = {
-      points: this.getPoints()
-    }
-  }
-
-  createDefaultGeometry (pos) {
-    const x = pos.x, y = pos.y
-    return {
-      points: [
-        {x: x - 50, y: y - 50}, {x: x + 50, y: y - 50},
-        {x: x + 50, y: y + 50}, {x: x - 50, y: y + 50}
-      ]
-    }
-  }
-
-  getPoints () {
-    const pts = this.el.getAttribute('points').split(/\s+/).filter(p => p)
-    return pts.map(p => {
-      const [x, y] = p.split(',').map(parseFloat)
-      return {x, y}
-    })
-  }
-
-  setPoints (points) {
-    if (Array.isArray(points)) {
-      this.el.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '))
-    }
-    else if (typeof points === 'string') {
-      this.el.setAttribute('points', points)
-    }
-  }
-
-  getCenter () {
-    const pts = this.getPoints()
-    return pts.reduce((acc, p) => ({x: acc.x + p.x / 4, y: acc.y + p.y / 4}), {x: 0, y: 0})
-  }
-
-  toJSON () {
-    return {
-      type: 'quad',
-      id: this.id,
-      name: this.name,
-      geometries: this.geometries,
-      attributes: this.attributes
-    }
-  }
-
-  get2DAttributes () {
-    return {
-      points: this.el.getAttribute('points')
-    }
-  }
-
-  getInitialRect () {
-    return {points: this.getPoints()}
-  }
-
-  updateVertex (initial, lDx, lDy, dir) {
-    const pts = [...initial.points]
-    const idx = {nw: 0, ne: 1, se: 2, sw: 3}[dir]
-    if (idx !== undefined) {
-      pts[idx] = {x: pts[idx].x + lDx, y: pts[idx].y + lDy}
-    }
-    this.setPoints(pts)
-  }
-
-  updateHandles (handlesGroup, _ctx) {
-    const pts = this.getPoints()
-    handlesGroup.querySelectorAll('.handle').forEach((h, idx) => {
-      setAttributes(h, {x: pts[idx].x, y: pts[idx].y})
-    })
-  }
-}
-
-export class EllipseShape extends Shape {
-  constructor (id, start, count) {
-    const el = createNS('ellipse')
-    Object.assign(el, {id})
-    setAttributes(el, {
-      cx: start ? start.x : 0,
-      cy: start ? start.y : 0,
-      rx: 0,
-      ry: 0,
-      'data-name': `Ellipse ${count}`,
-      class: 'shape'
-    })
-    super(el)
-  }
-
-  get2DAttributes () {
-    return {
-      cx: this.el.getAttribute('cx'),
-      cy: this.el.getAttribute('cy'),
-      rx: this.el.getAttribute('rx'),
-      ry: this.el.getAttribute('ry')
-    }
-  }
-
-  getCenter () { return {x: parseFloat(this.el.getAttribute('cx')), y: parseFloat(this.el.getAttribute('cy'))} }
-
-  getLocalBBox () {
-    const r = this.getInitialRect()
-    return {x: r.cx - r.rx, y: r.cy - r.ry, width: 2 * r.rx, height: 2 * r.ry}
-  }
-
-  getInitialRect () {
-    return mapObject(this.get2DAttributes(), (key, value) => [key, parseFloat(value)])
-  }
-
-  updateResize (r, lDx, lDy, dir) {
-    let rx = r.rx, ry = r.ry, cx = r.cx, cy = r.cy
-    if (dir.includes('e')) {
-      rx += lDx / 2
-      cx += lDx / 2
-    }
-    if (dir.includes('w')) {
-      rx -= lDx / 2
-      cx += lDx / 2
-    }
-    if (dir.includes('s')) {
-      ry += lDy / 2
-      cy += lDy / 2
-    }
-    if (dir.includes('n')) {
-      ry -= lDy / 2
-      cy += lDy / 2
-    }
-    this.set2DAttributes({cx, cy, rx: Math.abs(rx), ry: Math.abs(ry)})
-  }
-
-  updateHandles (_handlesGroup, _context = {}) {
-    const b = this.getLocalBBox(), x = b.x, y = b.y, w = b.width, h = b.height
-    const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2, angles = _context.ellipseHandleAngles || {}
-    _handlesGroup.querySelectorAll('.ellipse-handle').forEach(h => {
-      const dir = h.getAttribute('data-ellipse-dir')
-      const angleRad = (angles[dir] || 0) * Math.PI / 180
-      setAttributes(h, {x: cx + rx * Math.cos(angleRad), y: cy + ry * Math.sin(angleRad)})
-    })
-  }
-
-  getRotation () {
-    const rot = this.el.style.rotate
-    return rot ? parseFloat(rot) : 0
-  }
-
-  setRotation (rot) {
-    this.el.style.rotate = `${rot}deg`
-  }
-
-  toJSON () {
-    return {
-      type: 'ellipse',
-      id: this.id,
-      name: this.name,
-      geometries: this.geometries,
-      attributes: this.attributes
-    }
-  }
-
-  createDefaultGeometry (pos) {
-    return {
-      attributes: {
-        cx: pos.x, cy: pos.y, rx: 50, ry: 50
-      },
-      rotate: '0deg'
-    }
-  }
 }
 
 export class VertexShape extends Shape {
@@ -376,7 +192,8 @@ export class DirectionShape extends Shape {
     if (dir === 'start') {
       attrs.x1 += lDx
       attrs.y1 += lDy
-    } else if (dir === 'end') {
+    }
+    else if (dir === 'end') {
       attrs.x2 += lDx
       attrs.y2 += lDy
     }
@@ -410,5 +227,174 @@ export class DirectionShape extends Shape {
     }
   }
 }
+
+/**
+ *  @abstract
+ */
+class UIInstaller {
+  /**
+   * called so that the module can install stuff in the SVG document.
+   * @param $svg {SVGElement}
+   * @param $svgDefs {SVGDefsElement} the definitions to add templates
+   * @param $zoomGroup {SVGGElement} the zoom group, contains everything that will move with the zoom/pan system
+   * @abstract
+   */
+  installSVGStuff ($svg, $svgDefs, $zoomGroup) {}
+
+  /**
+   * @param $topBar {HTMLElement} the top button bar
+   * @abstract
+   */
+  installTopBarStuff ($topBar) {}
+
+  /**
+   * Shape selection functions, the UI system record all those functions.
+   * When a click on a shape is handled, they are tried one after the other, the first one to return a non-null Mode, gets this mode installed.
+   *  @return {(function(Shape): Mode|undefined)[]} an array of functions, they will be passed Shapes, the first one to return a Mode
+   *  @abstract
+   */
+  selectionModes () {}
+
+  /**
+   * Document parsing handler. The document is a big JSON array containing tagged objects.
+   * @return {Object.<string, function(*): [Shape]>} a dictionary of tag to parser.
+   * The parser is given the matching document object and returns a (possibly empty) array of parsed Shapes
+   * @abstract
+   */
+  documentShapeReaders () {}
+
+  /**
+   * @param doc {ReconstructionDocument}
+   * @param scratchPad {Object} is an object that will be passed for all stages of ceres calls, the callee can store its transient data in it own namespace
+   * @param CeresModule
+   * @abstract
+   */
+  prepareCeres (doc, scratchPad, CeresModule) {}
+}
+
+class VertexShapeInstaller extends UIInstaller {
+  /**
+   * @param $svg
+   * @param $svgDefs SVGDefsElement
+   */
+  installSVGStuff ($svg, $svgDefs, $zoomGroup) {
+    // language=SVG
+    const icon = `
+        <symbol id="vertex-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
+            <circle cx="0" cy="0" r="4"/>
+        </symbol>`
+    $svgDefs.insertAdjacentHTML('beforeend', icon)
+  }
+
+  /**
+   * @param $topBar HTMLElement
+   */
+  installTopBarStuff ($topBar) {
+    const btn = $topBar.ownerDocument.createElement('button')
+    btn.innerText = 'Vertex'
+    btn.id = 'vertex-btn'
+    btn.addEventListener('click', () => activeMode.setMode(modes.DrawVertexMode))
+    $topBar.prepend(btn)
+  }
+
+  selectionModes () {
+    return [el => el instanceof VertexShape ? modes.SelectionVertexMode : undefined]
+  }
+
+  documentShapeReaders () {
+    return {
+      'vertex': ent => {
+        const s = new VertexShape(ent.id, null, 0)
+        s.geometries = ent.geometries || {}
+        s.attributes = ent.attributes || {x: 0, y: 0, z: 0}
+        s.name = ent.name
+        return [s]
+      }
+    }
+  }
+
+  /**
+   * @param doc {ReconstructionDocument}
+   * @param scratchPad {Object} is an object that will be passed for all stages of ceres calls, the callee can store its transient data in it own namespace
+   * @param CeresModule
+   */
+  prepareCeres (doc, scratchPad, CeresModule) {
+    const vertices = doc.shapes.filter(s => s instanceof VertexShape)
+    const collectedVertices = []
+    for (const vertex of vertices) {
+      collectedVertices.push([...Object.values(vertex.attributes), ...Object.values(vertex.get2DAttributes())])
+    }
+    console.log('collectedVertices', collectedVertices)
+    const centroidRadius = computeCentroidRadius(collectedVertices)
+  }
+}
+
+SHAPE_INSTALLERS.push(new VertexShapeInstaller())
+
+class DirectionShapeInstaller extends UIInstaller {
+  /**
+   * @param $svg
+   * @param $svgDefs SVGDefsElement
+   * @param $zoomGroup
+   */
+  installSVGStuff ($svg, $svgDefs, $zoomGroup) {
+    // language=SVG
+    const icon = `
+        <symbol id="direction-handle-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6"
+                y="-6">
+            <circle cx="0" cy="0" r="5" fill="white" stroke="#007bff" stroke-width="1"/>
+        </symbol>`
+    $svgDefs.insertAdjacentHTML('beforeend', icon)
+    // language=SVG
+    let handles = `
+        <g id="direction-handles-group" style="visibility: hidden;">
+            <use class="handle" data-dir="start" x="0" y="0" href="#direction-handle-icon"/>
+            <use class="handle" data-dir="end" x="0" y="0" href="#direction-handle-icon"/>
+        </g>`
+    $zoomGroup.insertAdjacentHTML('beforeend', handles)
+  }
+
+  /**
+   * @param $topBar HTMLElement
+   */
+  installTopBarStuff ($topBar) {
+    let btn = $topBar.querySelector('#direction-btn')
+    if (!btn) {
+      btn = $topBar.ownerDocument.createElement('button')
+      btn.innerText = 'Direction'
+      btn.id = 'direction-btn'
+      btn.addEventListener('click', () => activeMode.setMode(modes.DrawDirectionMode))
+      $topBar.prepend(btn)
+    }
+  }
+
+  selectionModes () {
+    return [el => el instanceof DirectionShape ? modes.SelectionDirectionMode : undefined]
+  }
+
+  documentShapeReaders () {
+    return {
+      'direction': ent => {
+        const s = new DirectionShape(ent.id, null, 0)
+        s.geometries = ent.geometries || {}
+        s.attributes = ent.attributes || {vx: 0, vy: 0, vz: 1}
+        s.name = ent.name
+        return [s]
+      }
+    }
+  }
+
+  /**
+   * @param doc {ReconstructionDocument}
+   * @param scratchPad {Object} is an object that will be passed for all stages of ceres calls, the callee can store its transient data in it own namespace
+   * @param CeresModule
+   */
+  prepareCeres (doc, scratchPad, CeresModule) {
+  }
+}
+
+SHAPE_INSTALLERS.push(new DirectionShapeInstaller())
+
+
 
 

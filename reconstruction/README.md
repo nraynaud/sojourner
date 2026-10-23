@@ -1,4 +1,5 @@
 # Prototype of a 3D reconstruction system
+This is a giant mix of AI slop and unchecked ADHD.
 
 ## Testing
 ### Playwright

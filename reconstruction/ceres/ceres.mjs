@@ -1,4 +1,5 @@
 console.time('wasm init')
+import { angleAxisRotatePoint } from '../src/geometry.mjs'
 import moduleCreator from './build/ceres_app.mjs'
 
 const Module = await moduleCreator()
@@ -15,34 +16,16 @@ const TYPE_TO_LLVM_TYPE = {
   'double64': 'double'
 }
 
-function angleAxisRotatePoint (angleAxis, pt) {
-  const theta2 = angleAxis[0] * angleAxis[0] + angleAxis[1] * angleAxis[1] + angleAxis[2] * angleAxis[2]
-  if (theta2 > Number.EPSILON) {
-    const theta = Math.sqrt(theta2)
-    const wx = angleAxis[0] / theta
-    const wy = angleAxis[1] / theta
-    const wz = angleAxis[2] / theta
-    const costheta = Math.cos(theta)
-    const sintheta = Math.sin(theta)
-    const dot_pt_w = pt[0] * wx + pt[1] * wy + pt[2] * wz
-    const cross_pt_w = [
-      wy * pt[2] - wz * pt[1],
-      wz * pt[0] - wx * pt[2],
-      wx * pt[1] - wy * pt[0]
-    ]
-    return [
-      pt[0] * costheta + cross_pt_w[0] * sintheta + wx * dot_pt_w * (1.0 - costheta),
-      pt[1] * costheta + cross_pt_w[1] * sintheta + wy * dot_pt_w * (1.0 - costheta),
-      pt[2] * costheta + cross_pt_w[2] * sintheta + wz * dot_pt_w * (1.0 - costheta)
-    ]
-  }
-  else {
-    return [pt[0], pt[1], pt[2]]
-  }
-}
-
-function compute_initial_state (fixedPoints, imageSize, target_fov_deg = 60.0) {
-  const count = fixedPoints.length
+/**
+ * Try to guess a few initial parameters before even starting the computation.
+ * @param centroidRadius {{cx: number, cy: number, cz: number, radius: number}|null} An initial estimate of what's in
+ * the field of view.
+ * Using the centroid as the camera lookAt and the radius as the FOV of all the vertices in the scene gives us an inkling that if they are in view, the frustum surround thems
+ * @param imageSize
+ * @param target_fov_deg
+ * @return {{intrinsics: {imageSizeX: *, imageSizeY: *, initialFx: *, initialFy: *, initialCx, initialCy, initialK1: number, aspectRatioPriorScale: number, focalPriorScale: number, principalPointCauchyRadius: number}, extrinsics: number[]}|{intrinsics: {imageSizeX: *, imageSizeY: *, initialFx: *, initialFy: *, initialCx, initialCy, initialK1: number, aspectRatioPriorScale: number, focalPriorScale: number, principalPointCauchyRadius: number}, extrinsics: number[]}}
+ */
+function compute_initial_state (centroidRadius, imageSize, target_fov_deg = 60.0) {
   const initIntrinsics = {
     imageSizeX: imageSize[0],
     imageSizeY: imageSize[1],
@@ -57,27 +40,8 @@ function compute_initial_state (fixedPoints, imageSize, target_fov_deg = 60.0) {
   }
   const initExtrinsics = [1.047, 0.01, 0.01, -200.0, 200.0, 4500]
 
-  if (count === 0) return {intrinsics: initIntrinsics, extrinsics: initExtrinsics}
-
-  let cx = 0, cy = 0, cz = 0
-  for (let i = 0; i < count; ++i) {
-    cx += fixedPoints[i][0]
-    cy += fixedPoints[i][1]
-    cz += fixedPoints[i][2]
-  }
-  cx /= count
-  cy /= count
-  cz /= count
-
-  let max_r_sq = 0
-  for (let i = 0; i < count; ++i) {
-    const dx = fixedPoints[i][0] - cx
-    const dy = fixedPoints[i][1] - cy
-    const dz = fixedPoints[i][2] - cz
-    max_r_sq = Math.max(max_r_sq, dx * dx + dy * dy + dz * dz)
-  }
-  const radius = Math.sqrt(max_r_sq)
-
+  if (centroidRadius === null) return {intrinsics: initIntrinsics, extrinsics: initExtrinsics}
+  const {cx, cy, cz, radius} = centroidRadius
   const fov_rad = target_fov_deg * (Math.PI / 180.0)
   const f = (imageSize[0] / 2.0) / Math.tan(fov_rad / 2.0)
   const distance = (radius * 1.2) / Math.tan(fov_rad / 2.0)
@@ -147,7 +111,7 @@ export default function runCeres (imgSize, fixedPoints, directions) {
   const intrinsicsPtr = Module._malloc(5 * 8)
   const extrinsicsPtr = Module._malloc(6 * 8)
   console.log('fixedPoints.length', fixedPoints.length)
-  const {intrinsics, extrinsics} = compute_initial_state(fixedPoints, imgSize)
+  const {intrinsics, extrinsics} = compute_initial_state(computeCentroidRadius(fixedPoints), imgSize)
   console.log('intrinsics', intrinsics)
   console.log('initialIntrinsicsLayout', initialIntrinsicsLayout)
   setLayoutValues(initialIntrinsicsLayout, intrinsics)
@@ -169,7 +133,6 @@ export default function runCeres (imgSize, fixedPoints, directions) {
       Module._add_direction(...jsDir, ...Object.values(observation), 1.0)
     }
   }
-
 
   Module._free(intrinsicsPtr)
   Module._free(extrinsicsPtr)

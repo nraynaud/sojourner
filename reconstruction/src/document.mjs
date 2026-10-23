@@ -38,7 +38,8 @@ export class ReconstructionDocument extends EventTarget {
       svg: $('svg-canvas'),
       undoStack: [],
       redoStack: [],
-      ui
+      ui,
+      shapeReaders: {},
     })
   }
 
@@ -50,7 +51,7 @@ export class ReconstructionDocument extends EventTarget {
 
   getState () {
     return {
-      entities: this.entities.map(s => s.toJSON()),
+      entities: this.entities.map(s => structuredClone(s.toJSON())),
       entityCount: this.entityCount,
       images: this.images.map(img => ({
         id: img.id,
@@ -320,7 +321,7 @@ export class ReconstructionDocument extends EventTarget {
       item.classList.toggle('selected', s === sel)
       if (s === sel)
         // invokelater to give time to the sub-panel to appear before the scrolling
-        invokeLater(()=>item.scrollIntoView({behavior: 'smooth', block: 'nearest'}))
+        invokeLater(() => item.scrollIntoView({behavior: 'smooth', block: 'nearest'}))
     })
     this.entities.forEach(s => {
       if (s.el) {
@@ -449,35 +450,37 @@ export class ReconstructionDocument extends EventTarget {
 
     if (d.entities) d.entities.forEach(ent => {
       let s
-      if (ent.type === 'rect') {
-        s = new shapes.QuadrilateralShape(ent.id, null, 0)
-        s.geometries = ent.geometries || {}
-        s.attributes = ent.attributes || {}
+      console.log('loading entity', ent.type)
+      if (ent.type in this.shapeReaders) {
+        const newShapes = this.shapeReaders[ent.type](ent)
+        for (const s1 of newShapes) { this.addShape(s1, true) }
       }
-      else if (ent.type === 'quad') {
-        s = new shapes.QuadrilateralShape(ent.id, null, 0)
-        s.geometries = ent.geometries || {}
-        s.attributes = ent.attributes || {}
-      }
-      else if (ent.type === 'ellipse') {
-        s = new shapes.EllipseShape(ent.id, null, 0)
-        s.geometries = ent.geometries || {}
-        s.attributes = ent.attributes || {}
-      }
-      else if (ent.type === 'vertex') {
-        s = new shapes.VertexShape(ent.id, null, 0)
-        s.geometries = ent.geometries || {}
-        s.attributes = ent.attributes || {x: 0, y: 0, z: 0}
-      }
-      else if (ent.type === 'direction') {
-        s = new shapes.DirectionShape(ent.id, null, 0)
-        s.geometries = ent.geometries || {}
-        s.attributes = ent.attributes || {vx: 0, vy: 0, vz: 1}
-      }
-      else return
+      else {
+        if (ent.type === 'rect') {
+          s = new shapes.QuadrilateralShape(ent.id, null, 0)
+          s.geometries = ent.geometries || {}
+          s.attributes = ent.attributes || {}
+        }
+        else if (ent.type === 'quad') {
+          s = new shapes.QuadrilateralShape(ent.id, null, 0)
+          s.geometries = ent.geometries || {}
+          s.attributes = ent.attributes || {}
+        }
+        else if (ent.type === 'ellipse') {
+          s = new shapes.EllipseShape(ent.id, null, 0)
+          s.geometries = ent.geometries || {}
+          s.attributes = ent.attributes || {}
+        }
+        else if (ent.type === 'direction') {
+          s = new shapes.DirectionShape(ent.id, null, 0)
+          s.geometries = ent.geometries || {}
+          s.attributes = ent.attributes || {vx: 0, vy: 0, vz: 1}
+        }
+        else return
 
-      s.name = ent.name
-      this.addShape(s, true)
+        s.name = ent.name
+        this.addShape(s, true)
+      }
     })
 
     this.updateImageUI()

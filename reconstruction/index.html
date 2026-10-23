@@ -18,10 +18,6 @@
 <body>
 
 <div id="toolbar">
-    <button id="rect-btn">Quadrilateral</button>
-    <button id="ellipse-btn">Ellipse</button>
-    <button id="direction-btn">Direction</button>
-    <button id="vertex-btn">Vertex</button>
     <button id="select-btn">Select</button>
     <button id="zoom-in-btn">Zoom +</button>
     <button id="zoom-out-btn">Zoom -</button>
@@ -51,45 +47,12 @@
     </div>
     <div id="canvas-container">
         <svg id="svg-canvas" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <symbol id="handle-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
-                    <rect x="-5" y="-5" width="10" height="10" fill="white" stroke="#007bff" stroke-width="1"/>
-                </symbol>
-                <symbol id="rotate-handle-icon" class="ignoreZoom" viewBox="-6 -20 12 20" height="32" width="12" x="-6"
-                        y="-26">
-                    <line stroke="#28a745" stroke-width="1" x1="0" y1="-20" x2="0" y2="0"/>
-                    <circle cx="0" cy="-20" r="6" fill="white" stroke="#28a745" stroke-width="1"/>
-                </symbol>
-                <symbol id="vertex-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12" x="-6" y="-6">
-                    <circle cx="0" cy="0" r="4"/>
-                </symbol>
-                <symbol id="direction-handle-icon" class="ignoreZoom" viewBox="-6 -6 12 12" height="12" width="12"
-                        x="-6" y="-6">
-                    <circle cx="0" cy="0" r="5" fill="white" stroke="#007bff" stroke-width="1"/>
-                </symbol>
+            <defs id="svg-defs">
             </defs>
             <g id="zoom-group">
                 <g id="background-group"></g>
                 <g id="shapes-group"></g>
                 <use id="hover-overlay" href="" pointer-events="none"></use>
-                <g id="quad-handles-group" style="visibility: hidden;">
-                    <!-- Resize handles -->
-                    <use class="handle " data-dir="nw" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="ne" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="se" x="0" y="0" href="#handle-icon"/>
-                    <use class="handle " data-dir="sw" x="0" y="0" href="#handle-icon"/>
-                </g>
-                <g id="ellipse-handles-group" style="visibility: hidden;">
-                    <!-- Ellipse curve handles -->
-                    <use class="ellipse-handle" data-ellipse-dir="n" x="0" y="0" href="#handle-icon"/>
-                    <use class="ellipse-handle" data-ellipse-dir="e" x="0" y="0" href="#handle-icon"/>
-                    <use class="ellipse-handle" data-ellipse-dir="s" x="0" y="0" href="#handle-icon"/>
-                    <use class="ellipse-handle" data-ellipse-dir="w" x="0" y="0" href="#handle-icon"/>
-                </g>
-                <g id="direction-handles-group" style="visibility: hidden;">
-                    <use class="handle" data-dir="start" x="0" y="0" href="#direction-handle-icon"/>
-                    <use class="handle" data-dir="end" x="0" y="0" href="#direction-handle-icon"/>
-                </g>
             </g>
         </svg>
         <div id="three-container" style="display: none; width: 100%; height: 100%;"></div>
@@ -122,6 +85,7 @@
       this.$svg = $svg
       this.$zoomGroup = $zoomGroup
       this.setMode(modes.SelectionIdleMode)
+      this.selectionModes = []
     }
 
     setMode (ModeClass, arg) {
@@ -138,10 +102,15 @@
 
     transitionToSelect (el) {
       if (el) {
+        for (const selector of this.selectionModes) {
+          const newMode = selector(el)
+          if (newMode) {
+            this.activeMode.dispatchModeTransition(newMode, el)
+            return
+          }
+        }
         let ModeClass = modes.SelectionQuadrilateralMode
         if (el instanceof shapes.EllipseShape) ModeClass = modes.SelectionEllipseMode
-        if (el instanceof shapes.VertexShape) ModeClass = modes.SelectionVertexMode
-        if (el instanceof shapes.DirectionShape) ModeClass = modes.SelectionDirectionMode
         this.activeMode.dispatchModeTransition(ModeClass, el)
       }
       else this.activeMode.dispatchModeTransition(modes.SelectionIdleMode, null)
@@ -214,6 +183,19 @@
   globalThis.ui = ui
   globalThis.doc = doc
   globalThis.activeMode = activeMode
+
+  for (const installer of shapes.SHAPE_INSTALLERS) {
+    installer.installSVGStuff($svg, $('svg-defs'), $zoomGroup)
+    installer.installTopBarStuff($('toolbar'))
+    activeMode.selectionModes.push(...installer.selectionModes())
+    for (const [tag, reader] of Object.entries(installer.documentShapeReaders())){
+        if (tag in doc.shapeReaders) {
+          console.error(`Duplicate shape reader for tag ${tag}`)
+        } else {
+          doc.shapeReaders[tag] = reader
+        }
+    }
+  }
 
   doc.addEventListener('selectionChanged', e => {
     detailsPanel.setShape(e.detail.selected)
@@ -324,10 +306,6 @@
   }
 
   const clickHandlers = {
-    'rect-btn': () => activeMode.setMode(modes.DrawQuadrilateralMode),
-    'ellipse-btn': () => activeMode.setMode(modes.DrawEllipseMode),
-    'direction-btn': () => activeMode.setMode(modes.DrawDirectionMode),
-    'vertex-btn': () => activeMode.setMode(modes.DrawVertexMode),
     'select-btn': () => activeMode.setMode(modes.SelectionIdleMode),
     'zoom-in-btn': () => ui.zoom(1.1),
     'zoom-out-btn': () => ui.zoom(0.9),

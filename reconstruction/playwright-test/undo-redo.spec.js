@@ -22,32 +22,47 @@ test.describe('Undo/Redo playwright-test', () => {
     const shapesGroup = page.locator('#shapes-group')
     const entityList = page.locator('#entity-list')
 
-    // Select Rectangle mode
-    await page.click('#rect-btn')
-
-    // Draw a rectangle
+    // Add Vertex
+    await page.click('#vertex-btn')
     const box = await canvas.boundingBox()
-    // Start at 50,50 relative to canvas
+    await page.mouse.click(box.x + 100, box.y + 100)
+
+    // Verify vertex added
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
+
+    // Add Direction
+    await page.click('#direction-btn')
     await page.mouse.move(box.x + 50, box.y + 50)
     await page.mouse.down()
     await page.mouse.move(box.x + 150, box.y + 150)
     await page.mouse.up()
 
-    // Verify rectangle added
-    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
-    // There should be 1 rectangle in the entity list (backgrounds are in #image-list)
+    // Verify direction added
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
+
+    // Undo direction addition
+    await page.click('#undo-btn')
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(0)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
     await expect(entityList.locator('.entity-item')).toHaveCount(1)
 
-    // Undo addition
+    // Undo vertex addition
     await page.click('#undo-btn')
-    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
-    // Entity list should be empty
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(0)
     await expect(entityList.locator('.entity-item')).toHaveCount(0)
 
-    // Redo addition
+    // Redo vertex addition
     await page.click('#redo-btn')
-    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
     await expect(entityList.locator('.entity-item')).toHaveCount(1)
+
+    // Redo direction addition
+    await page.click('#redo-btn')
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(1)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
   })
 
   test('Undo/Redo shape deletion', async ({page}) => {
@@ -55,124 +70,143 @@ test.describe('Undo/Redo playwright-test', () => {
     const shapesGroup = page.locator('#shapes-group')
     const entityList = page.locator('#entity-list')
 
-    // Select Rectangle mode and draw a rectangle
-    await page.click('#rect-btn')
+    // Add Vertex
+    await page.click('#vertex-btn')
     const box = await canvas.boundingBox()
+    await page.mouse.click(box.x + 100, box.y + 100)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+
+    // Add Direction
+    await page.click('#direction-btn')
     await page.mouse.move(box.x + 50, box.y + 50)
     await page.mouse.down()
     await page.mouse.move(box.x + 150, box.y + 150)
     await page.mouse.up()
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
 
-    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
+    // Delete Direction
+    const dirItem = entityList.locator('.entity-item').filter({ hasText: 'Direction 2' })
+    await dirItem.hover()
+    await dirItem.locator('.delete-btn').click()
 
-    // Delete the rectangle.
-    const rectItem = entityList.locator('.entity-item').filter({ hasText: 'Quadrilateral 1' })
-    await rectItem.hover()
-    await rectItem.locator('.delete-btn').click()
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(0)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
 
-    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
+    // Delete Vertex
+    const vertexItem = entityList.locator('.entity-item').filter({ hasText: 'Vertex 1' })
+    await vertexItem.hover()
+    await vertexItem.locator('.delete-btn').click()
 
-    // Undo deletion
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(0)
+    await expect(entityList.locator('.entity-item')).toHaveCount(0)
+
+    // Undo vertex deletion
     await page.click('#undo-btn')
-    await expect(shapesGroup.locator('polygon')).toHaveCount(1)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
 
-    // Redo deletion
+    // Undo direction deletion
+    await page.click('#undo-btn')
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(1)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(2)
+
+    // Redo direction deletion
     await page.click('#redo-btn')
-    await expect(shapesGroup.locator('polygon')).toHaveCount(0)
+    await expect(shapesGroup.locator('line.direction-shape')).toHaveCount(0)
+    await expect(shapesGroup.locator('use[href="#vertex-icon"]')).toHaveCount(1)
+    await expect(entityList.locator('.entity-item')).toHaveCount(1)
   })
 
-  test.fixme('Undo/Redo shape transformation (resize)', async ({page}) => {
+  test('Undo/Redo vertex movement', async ({page}) => {
     const canvas = page.locator('#svg-canvas')
     const shapesGroup = page.locator('#shapes-group')
 
-    // Select Rectangle mode and draw a rectangle (100x100)
-    await page.click('#rect-btn')
+    // Add Vertex
+    await page.click('#vertex-btn')
     const box = await canvas.boundingBox()
-    await page.mouse.move(box.x + 50, box.y + 50)
+    await page.mouse.click(box.x + 100, box.y + 100)
+
+    const vertex = shapesGroup.locator('use[href="#vertex-icon"]')
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-x')))).toBe(100)
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-y')))).toBe(100)
+
+    // Select vertex and move it
+    await page.click('#select-btn')
+    await vertex.click()
+
+    await page.mouse.move(box.x + 100, box.y + 100)
     await page.mouse.down()
     await page.mouse.move(box.x + 150, box.y + 150)
+    await page.mouse.move(box.x + 200, box.y + 200)
     await page.mouse.up()
 
-    const rect = shapesGroup.locator('polygon')
-    // Capture initial points to avoid regex hell
-    const initialPoints = await rect.getAttribute('points')
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-x')))).toBe(200)
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-y')))).toBe(200)
 
-    // Switch to select mode explicitly
-    await page.click('#select-btn')
-
-    // Click to select the rectangle to show handles
-    await rect.click()
-
-    // Resize using the 'se' handle
-    const handle = page.locator('.handle[data-dir="se"]')
-    await expect(handle).toBeVisible()
-
-    // Use evaluate to perform a drag.
-    // Use dispatchEvent directly on the element found via document.querySelector
-    const resizedPoints = await page.evaluate(async (dir) => {
-      const handle = document.querySelector(`.handle[data-dir="${dir}"]`);
-      const svg = document.querySelector('#svg-canvas');
-      const zoomGroup = document.querySelector('#zoom-group');
-
-      const getPt = (e) => {
-        let p = svg.createSVGPoint();
-        p.x = e.clientX; p.y = e.clientY;
-        return p.matrixTransform(zoomGroup.getScreenCTM().inverse());
-      };
-
-      const rectH = handle.getBoundingClientRect();
-      const startX = rectH.left + rectH.width / 2;
-      const startY = rectH.top + rectH.height / 2;
-
-      handle.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true, clientX: startX, clientY: startY, button: 0
-      }));
-
-      window.dispatchEvent(new MouseEvent('mousemove', {
-        bubbles: true, clientX: startX + 100, clientY: startY + 100, button: 0
-      }));
-
-      window.dispatchEvent(new MouseEvent('mouseup', {
-        bubbles: true, button: 0
-      }));
-
-      return document.querySelector('#shapes-group polygon').getAttribute('points');
-    }, 'se')
-
-    // Check it actually changed
-    expect(resizedPoints).not.toBe(initialPoints)
-
-    // Undo resize
+    // Undo movement
     await page.click('#undo-btn')
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-x')))).toBe(100)
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-y')))).toBe(100)
 
-    // Wait for the change to be reflected
-    await expect(rect).not.toHaveAttribute('points', resizedPoints)
-    const pointsAfterUndo = await rect.getAttribute('points')
-
-    // Check if it's close to initial
-    const parsePts = (s) => s.split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n))
-    const p1 = parsePts(initialPoints)
-    const p2 = parsePts(pointsAfterUndo)
-    expect(p1.length).toBe(p2.length)
-    for(let i=0; i<p1.length; i++) {
-        expect(p2[i]).toBeCloseTo(p1[i], 0)
-    }
-
-    // Redo resize
+    // Redo movement
     await page.click('#redo-btn')
-    await expect(rect).toHaveAttribute('points', resizedPoints)
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-x')))).toBe(200)
+    await expect.poll(async () => Math.round(parseFloat(await vertex.getAttribute('data-y')))).toBe(200)
+  })
+
+  test('Undo/Redo direction modification', async ({page}) => {
+    const canvas = page.locator('#svg-canvas')
+    const shapesGroup = page.locator('#shapes-group')
+
+    // Add Direction
+    await page.click('#direction-btn')
+    const box = await canvas.boundingBox()
+    await page.mouse.move(box.x + 100, box.y + 100)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 200, box.y + 200)
+    await page.mouse.up()
+
+    const line = shapesGroup.locator('line.direction-shape')
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('x2')))).toBe(200)
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('y2')))).toBe(200)
+
+    // Select Direction and drag 'end' handle
+    await page.click('#select-btn')
+    await line.click()
+
+    const handleEnd = page.locator('#direction-handles-group .handle[data-dir="end"]')
+    await expect(handleEnd).toBeVisible()
+
+    await page.mouse.move(box.x + 200, box.y + 200)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 250, box.y + 250)
+    await page.mouse.up()
+
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('x2')))).toBe(250)
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('y2')))).toBe(250)
+
+    // Undo handle modification
+    await page.click('#undo-btn')
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('x2')))).toBe(200)
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('y2')))).toBe(200)
+
+    // Redo handle modification
+    await page.click('#redo-btn')
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('x2')))).toBe(250)
+    await expect.poll(async () => Math.round(parseFloat(await line.getAttribute('y2')))).toBe(250)
   })
 
   test('Undo/Redo rename', async ({page}) => {
+    const canvas = page.locator('#svg-canvas')
     const entityList = page.locator('#entity-list')
 
-    // Draw rectangle
-    await page.click('#rect-btn')
-    const box = await (page.locator('#svg-canvas')).boundingBox()
-    await page.mouse.move(box.x + 50, box.y + 50)
-    await page.mouse.down()
-    await page.mouse.move(box.x + 150, box.y + 150)
-    await page.mouse.up()
+    // Add Vertex
+    await page.click('#vertex-btn')
+    const box = await canvas.boundingBox()
+    await page.mouse.click(box.x + 100, box.y + 100)
 
     const entityItem = entityList.locator('.entity-item').first()
     const label = entityItem.locator('.name-label')
@@ -181,10 +215,10 @@ test.describe('Undo/Redo playwright-test', () => {
     // Double-click to rename
     await entityItem.dblclick()
     const input = entityItem.locator('input')
-    await input.fill('New Name')
+    await input.fill('New Vertex Name')
     await input.press('Enter')
 
-    await expect(label).toHaveText('New Name')
+    await expect(label).toHaveText('New Vertex Name')
 
     // Undo rename
     await page.click('#undo-btn')
@@ -192,6 +226,6 @@ test.describe('Undo/Redo playwright-test', () => {
 
     // Redo rename
     await page.click('#redo-btn')
-    await expect(label).toHaveText('New Name')
+    await expect(label).toHaveText('New Vertex Name')
   })
 })
